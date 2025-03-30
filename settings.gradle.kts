@@ -1,8 +1,8 @@
 pluginManagement {
     val quarkusPluginVersion: String by settings
     val quarkusPluginId: String by settings
-    val kotlinVersion = "2.0.21"
-    
+    val kotlinVersion: String by settings
+
     repositories {
         mavenCentral()
         gradlePluginPortal()
@@ -14,4 +14,5 @@ pluginManagement {
         id("org.jetbrains.kotlin.plugin.allopen") version kotlinVersion
     }
 }
-rootProject.name="structmess"
+
+rootProject.name = "structmess"

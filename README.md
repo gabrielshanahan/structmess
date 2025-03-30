@@ -2,7 +2,94 @@
 
 This project uses Quarkus with Kotlin, the Supersonic Subatomic Java Framework with Kotlin support.
 
-If you want to learn more about Quarkus, please visit its website: <https://quarkus.io/>.
+## PostgreSQL Message Queue System
+
+This project implements a high-performance message queue system using PostgreSQL with:
+
+- SKIP LOCKED for efficient message claiming without blocking
+- LISTEN/NOTIFY for real-time message notifications
+- JSONB for flexible message payloads
+- FIFO (First In, First Out) message processing
+- Automatic retry mechanism
+
+It follows a clean layered architecture:
+- REST API layer (`/api`)
+- Service layer (`/service`)
+- Messaging infrastructure layer (`/messaging`)
+- Repository pattern using direct JDBC (no Hibernate/ORM)
+- Domain model (`/domain`)
+
+### API Endpoints
+
+- `POST /messages/{topic}` - Send a message to a topic
+- `POST /messages/{topic}/claim` - Manually claim a message for processing
+- `POST /messages/{id}/ack` - Acknowledge successful processing of a message
+- `POST /messages/{id}/nack` - Mark a message as failed (with optional retry)
+
+## Getting Started
+
+### Prerequisites
+
+- JDK 21 or later
+- Docker and Docker Compose (for PostgreSQL)
+
+### Setting up the Database
+
+Start the PostgreSQL database using Docker Compose:
+
+```shell script
+docker-compose up -d
+```
+
+### Running the Application
+
+```shell script
+./gradlew quarkusDev
+```
+
+The application will be available at <http://localhost:8080>
+
+## Message Queue Usage Examples
+
+### Sending a Message
+
+```http
+POST /messages/example-topic HTTP/1.1
+Content-Type: application/json
+
+{
+  "key": "value",
+  "data": {
+    "nested": "content"
+  }
+}
+```
+
+### Consuming Messages
+
+You can consume messages programmatically:
+
+```kotlin
+// Using MessageService to process messages
+messageService.processMessages("example-topic") { message ->
+    // Process the message
+    val payload = objectMapper.readValue(message.payload, Map::class.java)
+    println("Processing message: $payload")
+    
+    // Return true for success, false for failure
+    Uni.createFrom().item(true)
+}.subscribe().with(
+    { result -> println("Result: $result") },
+    { error -> println("Error: $error") }
+)
+```
+
+Or claim messages manually via the API:
+
+```http
+POST /messages/example-topic/claim HTTP/1.1
+Content-Type: application/json
+```
 
 ## Kotlin Support
 

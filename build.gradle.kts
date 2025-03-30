@@ -3,6 +3,8 @@ plugins {
     id("org.jetbrains.kotlin.jvm")
     id("org.jetbrains.kotlin.plugin.allopen")
     id("io.quarkus")
+    id("com.ncorti.ktfmt.gradle") version "0.22.0"
+    id("io.gitlab.arturbosch.detekt") version "1.23.8"
 }
 
 repositories {
@@ -15,11 +17,17 @@ val quarkusPlatformArtifactId: String by project
 val quarkusPlatformVersion: String by project
 
 dependencies {
-    implementation(enforcedPlatform("${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}"))
+    implementation(
+        enforcedPlatform(
+            "${quarkusPlatformGroupId}:${quarkusPlatformArtifactId}:${quarkusPlatformVersion}"
+        )
+    )
     implementation("io.quarkus:quarkus-rest")
     implementation("io.quarkus:quarkus-flyway")
     implementation("io.quarkus:quarkus-rest-jackson")
     implementation("io.quarkus:quarkus-jdbc-postgresql")
+    implementation("io.quarkiverse.fluentjdbc:quarkus-fluentjdbc:1.0.0")
+    implementation("io.quarkus:quarkus-reactive-pg-client")
     implementation("io.quarkus:quarkus-arc")
     implementation("io.quarkus:quarkus-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-stdlib")
@@ -28,6 +36,7 @@ dependencies {
 }
 
 group = "io.github.gabrielshanahan"
+
 version = "1.0.0-SNAPSHOT"
 
 java {
@@ -56,3 +65,25 @@ tasks.withType<JavaCompile> {
     options.encoding = "UTF-8"
     options.compilerArgs.add("-parameters")
 }
+
+ktfmt { kotlinLangStyle() }
+
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom(files("$projectDir/config/detekt/detekt.yml"))
+    baseline = file("$projectDir/config/detekt/baseline.xml")
+}
+
+tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+    reports {
+        html.required.set(true)
+        xml.required.set(false)
+        txt.required.set(true)
+        sarif.required.set(false)
+        md.required.set(false)
+    }
+}
+
+tasks.check { dependsOn("ktfmtCheck", "detekt") }
+
+tasks.register("format") { dependsOn("ktfmtFormat") }
