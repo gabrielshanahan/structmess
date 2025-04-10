@@ -1,9 +1,11 @@
 package io.github.gabrielshanahan.structmess.messaging
 
 import com.fasterxml.jackson.databind.JsonNode
+import io.github.gabrielshanahan.structmess.domain.CooperationScope
+import io.github.gabrielshanahan.structmess.domain.Coroutine
 import io.github.gabrielshanahan.structmess.domain.Message
 import io.smallrye.mutiny.Uni
-import io.vertx.mutiny.sqlclient.SqlConnection
+import io.vertx.mutiny.sqlclient.SqlClient
 import java.util.UUID
 
 /**
@@ -16,7 +18,7 @@ interface MessageQueue {
      *
      * @param messageId The id of the message
      */
-    fun fetch(connection: SqlConnection, messageId: UUID): Uni<Message?>
+    fun fetch(client: SqlClient, messageId: UUID): Uni<Message?>
 
     /**
      * Publish a message to a specific topic.
@@ -25,7 +27,20 @@ interface MessageQueue {
      * @param payload The message payload as a JSON object
      * @return The published message
      */
-    fun publish(connection: SqlConnection, topic: String, payload: JsonNode): Uni<Message>
+    fun launchAndForget(client: SqlClient, topic: String, payload: JsonNode): Uni<Message>
+
+    /**
+     * Publish a message to a specific topic.
+     *
+     * @param topic The topic to publish to
+     * @param payload The message payload as a JSON object
+     * @return The published message
+     */
+    fun launch(
+        scope: CooperationScope,
+        topic: String,
+        payload: JsonNode,
+    ): Uni<Message>
 
     /**
      * Subscribe to messages on a specific topic.
@@ -33,7 +48,7 @@ interface MessageQueue {
      * @param topic The topic to subscribe to
      * @return A stream of messages
      */
-    fun subscribe(topic: String, handler: (SqlConnection, Message) -> Uni<Unit>): Subscription
+    fun subscribe(topic: String, coroutine: Coroutine): Subscription
 
     fun interface Subscription : AutoCloseable
 }

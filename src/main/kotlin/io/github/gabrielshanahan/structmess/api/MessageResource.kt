@@ -22,25 +22,34 @@ class MessageResource(
     private val client: Pool,
 ) {
 
-    /** Send a message to a topic. */
-    @POST
-    @Path("/{topic}")
-    fun sendMessage(@PathParam("topic") topic: String, payload: Map<String, Any>): Response {
-        val jsonNode = objectMapper.valueToTree<JsonNode>(payload)
-        val message =
-            client
-                .withTransaction { connection -> messageQueue.publish(connection, topic, jsonNode) }
-                .await()
-                .indefinitely()
-
-        return Response.created(URI.create("/messages/${message.id}"))
-            .entity(
-                mapOf(
-                    "id" to message.id,
-                    "topic" to message.topic,
-                    "createdAt" to message.createdAt,
-                )
-            )
-            .build()
-    }
+//    /** Send a message to a topic. */
+//    @POST
+//    @Path("/{topic}")
+//    fun sendMessage(@PathParam("topic") topic: String, payload: Map<String, Any>): Response {
+//        val jsonNode = objectMapper.valueToTree<JsonNode>(payload)
+//        val message =
+//            client
+//                .withTransaction { connection ->
+//                    messageQueue.launchAndForget(
+//                        connection,
+//                        null,
+//                        null,
+//                        emptyList(),
+//                        topic,
+//                        jsonNode,
+//                    )
+//                }
+//                .await()
+//                .indefinitely()
+//
+//        return Response.created(URI.create("/messages/${message.id}"))
+//            .entity(
+//                mapOf(
+//                    "id" to message.id,
+//                    "topic" to message.topic,
+//                    "createdAt" to message.createdAt,
+//                )
+//            )
+//            .build()
+//    }
 }
