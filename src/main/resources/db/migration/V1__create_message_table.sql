@@ -19,14 +19,14 @@ BEGIN
     v_bytes := SET_BYTE(
             v_bytes,
             6,
-            ((GET_BYTE(v_bytes, 6) & 0x0F) | 0x70)::int
+            ((GET_BYTE(v_bytes, 6) & 15) | 112)::int
                );
 
     -- Set variant to RFC4122 in byte 8
     v_bytes := SET_BYTE(
             v_bytes,
             8,
-            ((GET_BYTE(v_bytes, 8) & 0x3F) | 0x80)::int
+            ((GET_BYTE(v_bytes, 8) & 63) | 128)::int
                );
 
     -- Fill remaining random bytes (except bytes 6 and 8)
@@ -41,8 +41,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql VOLATILE;
 
-
-CREATE TABLE IF NOT EXISTS messages (
+CREATE TABLE IF NOT EXISTS message (
     id UUID PRIMARY KEY DEFAULT gen_uuid_v7(),
     topic VARCHAR(63) NOT NULL,
     payload JSONB NOT NULL,
@@ -50,17 +49,17 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 -- Create indexes for efficient message processing
-CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages (created_at);
-CREATE INDEX IF NOT EXISTS idx_messages_topic ON messages (topic);
+CREATE INDEX IF NOT EXISTS idx_message_created_at ON message (created_at);
+CREATE INDEX IF NOT EXISTS idx_message_topic ON message (topic);
 
 -- Comment on table
-COMMENT ON TABLE messages IS 'Stores messages for the messaging queue system';
+COMMENT ON TABLE message IS 'Stores messages for the messaging queue system';
 
 -- Comments on columns
-COMMENT ON COLUMN messages.id IS 'Unique identifier for the message (UUIDv7)';
-COMMENT ON COLUMN messages.topic IS 'The topic to which the message belongs';
-COMMENT ON COLUMN messages.payload IS 'The actual message content stored as JSONB';
-COMMENT ON COLUMN messages.created_at IS 'Timestamp when the message was created';
+COMMENT ON COLUMN message.id IS 'Unique identifier for the message (UUIDv7)';
+COMMENT ON COLUMN message.topic IS 'The topic to which the message belongs';
+COMMENT ON COLUMN message.payload IS 'The actual message content stored as JSONB';
+COMMENT ON COLUMN message.created_at IS 'Timestamp when the message was created';
 
 -- Create trigger function to notify on message insert
 CREATE OR REPLACE FUNCTION notify_message_insert()
@@ -73,6 +72,6 @@ $$ LANGUAGE plpgsql;
 
 -- Create trigger to execute the notification function after insert
 CREATE TRIGGER message_insert_trigger
-    AFTER INSERT ON messages
+    AFTER INSERT ON message
     FOR EACH ROW
-    EXECUTE FUNCTION notify_message_insert(); 
+    EXECUTE FUNCTION notify_message_insert();
