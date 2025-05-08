@@ -1,10 +1,10 @@
 package io.github.gabrielshanahan.structmess.messaging
 
 import com.fasterxml.jackson.databind.JsonNode
-import io.github.gabrielshanahan.structmess.domain.CooperationContext
-import io.github.gabrielshanahan.structmess.domain.CooperationRoot
-import io.github.gabrielshanahan.structmess.domain.CooperationScope
-import io.github.gabrielshanahan.structmess.domain.Coroutine
+import io.github.gabrielshanahan.structmess.coroutine.CooperationContext
+import io.github.gabrielshanahan.structmess.coroutine.CooperationRoot
+import io.github.gabrielshanahan.structmess.coroutine.CooperationScope
+import io.github.gabrielshanahan.structmess.coroutine.Coroutine
 import io.github.gabrielshanahan.structmess.domain.Message
 import io.smallrye.mutiny.Uni
 import io.vertx.mutiny.sqlclient.SqlConnection
@@ -50,7 +50,7 @@ interface MessageQueue {
         additionalContext: CooperationContext? = null,
     ): Uni<Message>
 
-    fun cancel(scope: CooperationScope, reason: String): Uni<Unit>
+    fun cancel(scope: CooperationScope, reason: String): Uni<Nothing>
 
     fun cancel(
         connection: SqlConnection,

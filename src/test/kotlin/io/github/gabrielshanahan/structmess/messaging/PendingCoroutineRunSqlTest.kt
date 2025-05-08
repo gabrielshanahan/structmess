@@ -1,13 +1,13 @@
 package io.github.gabrielshanahan.structmess.messaging
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import io.github.gabrielshanahan.structmess.domain.ContinuationIdentifier
-import io.github.gabrielshanahan.structmess.domain.CooperationHierarchyStrategy
-import io.github.gabrielshanahan.structmess.domain.CoroutineIdentifier
+import io.github.gabrielshanahan.structmess.coroutine.ContinuationIdentifier
+import io.github.gabrielshanahan.structmess.coroutine.CooperationHierarchyStrategy
+import io.github.gabrielshanahan.structmess.coroutine.CoroutineIdentifier
+import io.github.gabrielshanahan.structmess.coroutine.ROLLING_BACK_CHILD_SCOPES_STEP_SUFFIX
+import io.github.gabrielshanahan.structmess.coroutine.ROLLING_BACK_PREFIX
+import io.github.gabrielshanahan.structmess.coroutine.whenAllHandlersHaveCompleted
 import io.github.gabrielshanahan.structmess.domain.Message
-import io.github.gabrielshanahan.structmess.domain.ROLLING_BACK_CHILD_SCOPES_STEP_SUFFIX
-import io.github.gabrielshanahan.structmess.domain.ROLLING_BACK_PREFIX
-import io.github.gabrielshanahan.structmess.domain.whenAllHandlersHaveCompleted
 import io.quarkus.test.junit.QuarkusTest
 import io.smallrye.mutiny.infrastructure.Infrastructure
 import io.vertx.core.json.JsonArray
@@ -26,7 +26,7 @@ import org.junit.jupiter.api.TestInstance
 
 @QuarkusTest
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class PostgresMessageQueueSqlTest {
+class PendingCoroutineRunSqlTest {
 
     @Inject lateinit var pool: Pool
 

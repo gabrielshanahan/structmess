@@ -1,7 +1,7 @@
 package io.github.gabrielshanahan.structmess.messaging
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import io.github.gabrielshanahan.structmess.domain.coroutine
+import io.github.gabrielshanahan.structmess.coroutine.coroutine
 import io.quarkus.test.junit.QuarkusTest
 import io.vertx.mutiny.sqlclient.Pool
 import io.vertx.mutiny.sqlclient.Tuple

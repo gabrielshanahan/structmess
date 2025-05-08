@@ -1,7 +1,8 @@
-package io.github.gabrielshanahan.structmess.domain
+package io.github.gabrielshanahan.structmess.coroutine
 
 import com.github.f4b6a3.uuid.UuidCreator
-import io.github.gabrielshanahan.structmess.domain.ContinuationResult.*
+import io.github.gabrielshanahan.structmess.domain.CooperationException
+import io.github.gabrielshanahan.structmess.domain.Message
 import io.smallrye.mutiny.Uni
 import io.smallrye.mutiny.infrastructure.Infrastructure
 import io.vertx.mutiny.sqlclient.SqlConnection
@@ -26,27 +27,28 @@ data class ContinuationIdentifier(
 // TODO: Doc that the suspension points are just after the last step finished, but before the new
 // one started!
 interface Continuation {
-    fun resumeWith(lastStepResult: LastStepResult): Uni<out ContinuationResult>
-}
+    fun resumeWith(lastStepResult: LastStepResult): Uni<out Result>
 
-sealed interface LastStepResult {
-    val message: Message
+    sealed interface LastStepResult {
+        val message: Message
 
-    data class SuccessfullyInvoked(override val message: Message) : LastStepResult
+        data class SuccessfullyInvoked(override val message: Message) : LastStepResult
 
-    data class SuccessfullyRolledBack(override val message: Message, val throwable: Throwable) :
-        LastStepResult
+        data class SuccessfullyRolledBack(override val message: Message, val throwable: Throwable) :
+            LastStepResult
 
-    data class Failure(override val message: Message, val throwable: Throwable) : LastStepResult
-}
+        data class Failure(override val message: Message, val throwable: Throwable) :
+            LastStepResult
+    }
 
-sealed interface ContinuationResult {
-    data class Suspend(val emittedMessages: List<Message>) :
-        ContinuationResult // TODO: Emitted at the end of each step no matter what
+    sealed interface Result {
+        data class Suspend(val emittedMessages: List<Message>) :
+            Result // TODO: Emitted at the end of each step no matter what
 
-    data object Success : ContinuationResult
+        data object Success : Result
 
-    data class Failure(val exception: Throwable) : ContinuationResult
+        data class Failure(val exception: Throwable) : Result
+    }
 }
 
 // TODO: Doc what these states mean
@@ -58,16 +60,19 @@ interface TransactionalStep {
     fun rollback(scope: CooperationScope, message: Message, throwable: Throwable): Uni<Unit> =
         Uni.createFrom().item(Unit)
 
+    // TODO: HandleChildFailures
     fun handleScopeFailure(scope: CooperationScope, throwable: Throwable): Uni<Unit> {
         throw throwable
     }
 }
 
-// TODO: ChildDeterminationStrategy or something
+// TODO: ChildStrategy or something
 fun interface CooperationHierarchyStrategy {
+    // TODO: anySeenEventMissingSQL
     fun anyMissingSeenSql(emissionsAlias: String, seenAlias: String): String
 }
 
+// TODO: allMustFinish
 fun whenAllHandlersHaveCompleted(
     topicsToHandlerNames: Map<String, List<String>>
 ): CooperationHierarchyStrategy {
@@ -101,6 +106,7 @@ fun whenAllHandlersHaveCompleted(
     }
 }
 
+// TODO: TimeMustElapse
 fun whenTimeHasElapsed(duration: Duration) = CooperationHierarchyStrategy { emissionsAlias, _ ->
     "$emissionsAlias.created_at > now() - INTERVAL '${duration.inWholeSeconds} second'"
 }
@@ -117,91 +123,6 @@ class Coroutine(
     }
 }
 
-class CoroutineBuilder(
-    val name: String,
-    val cooperationHierarchyStrategy: CooperationHierarchyStrategy,
-) {
-
-    private val steps: MutableList<TransactionalStep> = mutableListOf()
-
-    fun uniStep(
-        name: String,
-        invoke: (CooperationScope, Message) -> Uni<Unit>,
-        rollback: ((CooperationScope, Message, Throwable) -> Uni<Unit>)? = null,
-        handleScopeFailure: ((CooperationScope, Throwable) -> Uni<Unit>)? = null,
-    ) {
-        steps.add(
-            object : TransactionalStep {
-                override val name: String
-                    get() = name
-
-                override fun invoke(scope: CooperationScope, message: Message) =
-                    invoke(scope, message)
-
-                override fun rollback(
-                    scope: CooperationScope,
-                    message: Message,
-                    throwable: Throwable,
-                ): Uni<Unit> =
-                    rollback?.invoke(scope, message, throwable)
-                        ?: super.rollback(scope, message, throwable)
-
-                override fun handleScopeFailure(
-                    scope: CooperationScope,
-                    throwable: Throwable,
-                ): Uni<Unit> =
-                    handleScopeFailure?.invoke(scope, throwable)
-                        ?: super.handleScopeFailure(scope, throwable)
-            }
-        )
-    }
-
-    fun uniStep(
-        invoke: (CooperationScope, Message) -> Uni<Unit>,
-        rollback: ((CooperationScope, Message, Throwable) -> Uni<Unit>)? = null,
-        handleScopeFailure: ((CooperationScope, Throwable) -> Uni<Unit>)? = null,
-    ) = uniStep(steps.size.toString(), invoke, rollback, handleScopeFailure)
-
-    fun uniStep(invoke: (CooperationScope, Message) -> Uni<Unit>) =
-        uniStep(steps.size.toString(), invoke, null, null)
-
-    fun step(
-        name: String,
-        invoke: (CooperationScope, Message) -> Unit,
-        rollback: ((CooperationScope, Message, Throwable) -> Unit)? = null,
-        handleScopeFailure: ((CooperationScope, Throwable) -> Unit)? = null,
-    ) = uniStep(name, unify(invoke), rollback?.let(::unify), handleScopeFailure?.let(::unify))
-
-    fun step(
-        invoke: (CooperationScope, Message) -> Unit,
-        rollback: ((CooperationScope, Message, Throwable) -> Unit)? = null,
-        handleScopeFailure: ((CooperationScope, Throwable) -> Unit)? = null,
-    ) = step(steps.size.toString(), invoke, rollback, handleScopeFailure)
-
-    fun step(name: String, invoke: (CooperationScope, Message) -> Unit) =
-        step(name, invoke, null, null)
-
-    fun step(invoke: (CooperationScope, Message) -> Unit) =
-        step(steps.size.toString(), invoke, null, null)
-
-    private fun <T, R, S> unify(f: (T, R) -> S): (T, R) -> Uni<S> = { t, r ->
-        Uni.createFrom().item(f(t, r))
-    }
-
-    private fun <T, R, S, U> unify(f: (T, R, S) -> U): (T, R, S) -> Uni<U> = { t, r, s ->
-        Uni.createFrom().item(f(t, r, s))
-    }
-
-    fun build(): Coroutine =
-        Coroutine(CoroutineIdentifier(name), steps, cooperationHierarchyStrategy)
-}
-
-fun coroutine(
-    name: String,
-    cooperationHierarchyStrategy: CooperationHierarchyStrategy,
-    block: CoroutineBuilder.() -> Unit,
-): Coroutine = CoroutineBuilder(name, cooperationHierarchyStrategy).apply(block).build()
-
 data class CooperationRoot(val cooperationLineage: List<UUID>, val message: Message)
 
 // TODO: Doc that the scope stays the same for entire coroutine run! Even including ROLLING_BACK
@@ -211,7 +132,7 @@ interface CooperationScope {
     var context: CooperationContext
 
     // TODO: Should instead contain continuation, implemented as "this" + Continuation interface
-    // should contain this identifier
+    //  should contain this identifier
     val identifier: ContinuationIdentifier
     val connection: SqlConnection
     val emittedMessages: List<Message>
@@ -230,7 +151,8 @@ sealed interface SuspensionPoint {
     data class AfterLastStep(val lastStep: TransactionalStep) : SuspensionPoint
 }
 
-// TODO: nuke this interface, no point
+// TODO: doc that the continuation is equivalent to the scope (demonstrate graphically?)
+// TODO: Rename to CoroutineContinuation?
 interface CooperativeContinuation : Continuation, CooperationScope
 
 class CooperativeContinuationImpl(
@@ -247,48 +169,61 @@ class CooperativeContinuationImpl(
 
     override val emittedMessages: MutableList<Message> = mutableListOf()
 
-    override fun resumeWith(lastStepResult: LastStepResult): Uni<out ContinuationResult> {
+    override fun resumeWith(
+        lastStepResult: Continuation.LastStepResult
+    ): Uni<out Continuation.Result> {
 
-        fun handlerFailuresAndResume(): Uni<out ContinuationResult> {
+        fun handlerFailuresAndResume(): Uni<out Continuation.Result> {
 
             fun resume(action: () -> Uni<Unit>) =
                 when (suspensionPoint) {
-                    is SuspensionPoint.AfterLastStep -> Uni.createFrom().item(Success)
+                    is SuspensionPoint.AfterLastStep ->
+                        Uni.createFrom().item(Continuation.Result.Success)
                     is SuspensionPoint.BeforeFirstStep,
                     is SuspensionPoint.BetweenSteps ->
                         try {
                             action()
-                                .replaceWith { Suspend(emittedMessages) as ContinuationResult }
+                                .replaceWith {
+                                    Continuation.Result.Suspend(emittedMessages)
+                                        as Continuation.Result
+                                }
                                 .onFailure()
-                                .recoverWithItem { e -> Failure(e) }
+                                .recoverWithItem { e -> Continuation.Result.Failure(e) }
                         } catch (e: Exception) {
-                            Uni.createFrom().item(Failure(e))
+                            Uni.createFrom().item(Continuation.Result.Failure(e))
                         }
                 }
 
             return when (lastStepResult) {
-                is LastStepResult.Failure ->
+                is Continuation.LastStepResult.Failure ->
                     try {
                         currentStep
                             .handleScopeFailure(this, lastStepResult.throwable)
                             // TODO: Test this! What happens when we get a scope failure in
                             // AfterLastStep? Do we ever get multiple SUSPEND records with the same
                             // step, will that work?
-                            .replaceWith { Suspend(emittedMessages) as ContinuationResult }
+                            .replaceWith {
+                                Continuation.Result.Suspend(emittedMessages) as Continuation.Result
+                            }
                             .onFailure()
-                            .recoverWithItem { e -> Failure(e) }
+                            .recoverWithItem { e -> Continuation.Result.Failure(e) }
                     } catch (e: Exception) {
-                        Uni.createFrom().item(Failure(e))
+                        Uni.createFrom().item(Continuation.Result.Failure(e))
                     }
 
-                is LastStepResult.SuccessfullyInvoked ->
+                is Continuation.LastStepResult.SuccessfullyInvoked ->
                     resume {
                         ensureActive()
                             .replaceWith(currentStep.invoke(this, lastStepResult.message))
                             .replaceWith(ensureActive())
                     }
 
-                is LastStepResult.SuccessfullyRolledBack ->
+                // TODO: have implementation of 'Rollback' and 'Normal'continuation that would
+                //  differ only in ensureActive().invoke.ensureActive() vs. .rollback. This means
+                //  we wouldn't need to distinguish between SuccessfullyInvoked and
+                // SuccessfullyRolledBack
+                //  and it would also solve the problem with the boolean flag in buildContinuation
+                is Continuation.LastStepResult.SuccessfullyRolledBack ->
                     resume {
                         currentStep.rollback(this, lastStepResult.message, lastStepResult.throwable)
                     }
@@ -302,12 +237,12 @@ class CooperativeContinuationImpl(
             }
             is SuspensionPoint.BetweenSteps ->
                 when (lastStepResult) {
-                    is LastStepResult.Failure -> {
+                    is Continuation.LastStepResult.Failure -> {
                         currentStep = suspensionPoint.previousStep
                         handlerFailuresAndResume()
                     }
-                    is LastStepResult.SuccessfullyInvoked,
-                    is LastStepResult.SuccessfullyRolledBack -> {
+                    is Continuation.LastStepResult.SuccessfullyInvoked,
+                    is Continuation.LastStepResult.SuccessfullyRolledBack -> {
                         currentStep = suspensionPoint.nextStep
                         handlerFailuresAndResume()
                     }
@@ -327,17 +262,12 @@ class CooperativeContinuationImpl(
     }
 
     override fun ensureActive(): Uni<Unit> =
-        fetchCancellationExceptions(this)
-            .emitOn(Infrastructure.getDefaultWorkerPool())
-            .invoke { exceptions ->
-                if (exceptions.any()) {
-                    throw CancellationRequestedException(
-                        "Cancellation request received",
-                        exceptions,
-                    )
-                }
+        fetchCancellationExceptions(this).emitOn(Infrastructure.getDefaultWorkerPool()).map {
+            exceptions ->
+            if (exceptions.any()) {
+                throw CancellationRequestedException("Cancellation request received", exceptions)
             }
-            .replaceWith(Unit)
+        }
 }
 
 // TODO: Change this into not-so-many nullable things
@@ -350,6 +280,7 @@ fun Coroutine.buildContinuation(
     //  have the coroutine there). Think about who's responsibility is it to deal with steps.
     lastSuspendedStepName: String?,
     cooperationRoot: CooperationRoot,
+    // TODO: Build rollbackContinuation
     rollingBack: Boolean,
     emitRollbacks: (scope: CooperationScope, stepName: String, throwable: Throwable) -> Uni<Unit>,
     fetchCancellationException: (CooperationScope) -> Uni<List<CooperationException>>,
@@ -454,8 +385,7 @@ fun Coroutine.buildContinuation(
 
         if (lastSuspendedStepName == null) {
             // No SUSPEND record, so we're rolling back before the first step committed. Since the
-            // transaction itself
-            // was never committed, nothing was emitted, and we're done.
+            // transaction itself was never committed, nothing was emitted, and we're done.
             CooperativeContinuationImpl(
                 connection,
                 cooperationContext,
@@ -474,11 +404,14 @@ fun Coroutine.buildContinuation(
                 throw IllegalStateException("Step $cleanLastSuspendedStepName was not found")
             }
 
+            // TODO: Doc that this means "rollback just started" and it allows us to have this logic
+            //  here, instead of in SQL. Although now that I think of if, adding a "rollback is the
+            //  last event" might as well be made part of the SQL, since it's almost identical to
+            //  what we do with contexts anyway
             if (cleanLastSuspendedStepName == lastSuspendedStepName) {
                 // We've doubled the number of steps by transforming each step into two substeps, so
-                // we multiply by
-                // two, and we want to start with the last one (reverting child scopes), so we add
-                // one
+                // we multiply by two, and we want to start with the last one (reverting child
+                // scopes), so we add one
                 val nextStepIdx = 2 * stepToRevert + 1
                 CooperativeContinuationImpl(
                     connection,
@@ -535,8 +468,6 @@ class ChildRollbackFailedException(causes: List<Throwable>) :
     }
 }
 
-// TODO: refactor so that this is rendered specially in CooperationFailure, eg.g
-// $$CANCELLATION_REQUESTED$$
 class CancellationRequestedException(
     reason: String,
     causes: List<CooperationException> = emptyList(),
@@ -548,8 +479,6 @@ class CancellationRequestedException(
     }
 }
 
-// TODO: refactor so that this is rendered specially in CooperationFailure, eg.g
-// $$ROLLBACK_REQUESTED$$
 class RollbackRequestedException(reason: String, causes: List<CooperationException> = emptyList()) :
     ScopeException(reason, causes.firstOrNull(), true) {
     init {

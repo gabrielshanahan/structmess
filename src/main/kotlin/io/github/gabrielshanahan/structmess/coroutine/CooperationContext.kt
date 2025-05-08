@@ -1,11 +1,13 @@
-package io.github.gabrielshanahan.structmess.domain
+package io.github.gabrielshanahan.structmess.coroutine
 
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.core.JsonToken
 import com.fasterxml.jackson.databind.ObjectMapper
-import io.github.gabrielshanahan.structmess.domain.CooperationContext.Key
+import io.github.gabrielshanahan.structmess.coroutine.CooperationContext.Key
 import java.io.StringReader
+import java.io.StringWriter
 import java.lang.reflect.ParameterizedType
+import kotlin.collections.iterator
 
 interface CooperationContext {
 
@@ -167,7 +169,7 @@ fun ObjectMapper.writeCooperationContext(context: CooperationContext): String =
     )
 
 fun ObjectMapper.writeMapofJsonStrings(rawMap: Map<String, String>): String {
-    val writer = java.io.StringWriter()
+    val writer = StringWriter()
     val generator = factory.createGenerator(writer)
 
     generator.writeStartObject()

@@ -1,6 +1,6 @@
 package io.github.gabrielshanahan.structmess.messaging
 
-import io.github.gabrielshanahan.structmess.domain.CooperationHierarchyStrategy
+import io.github.gabrielshanahan.structmess.coroutine.CooperationHierarchyStrategy
 import io.vertx.mutiny.sqlclient.Pool
 import io.vertx.mutiny.sqlclient.Row
 import io.vertx.mutiny.sqlclient.RowSet
@@ -156,6 +156,7 @@ val childRollingBacks =
                         AND parent_seen.cooperation_lineage <@ rolling_backs.cooperation_lineage 
                         AND cardinality(rolling_backs.cooperation_lineage) = cardinality(parent_seen.cooperation_lineage) + 1
                 WHERE rolling_backs.type = 'ROLLING_BACK'
+                ORDER BY rolling_backs.created_at
             """
             .trimIndent(),
     )
@@ -280,7 +281,7 @@ fun seenForProcessing(
             )
     }
 
-fun lastTwoEvent(
+fun lastTwoEvents(
     cooperationHierarchyStrategy: CooperationHierarchyStrategy,
     secondRunAfterLock: Boolean = false,
 ) =
@@ -305,7 +306,7 @@ fun finalSelect(
     cooperationHierarchyStrategy: CooperationHierarchyStrategy,
     secondRunAfterLock: Boolean = false,
 ) =
-    lastTwoEvent(cooperationHierarchyStrategy, secondRunAfterLock)
+    lastTwoEvents(cooperationHierarchyStrategy, secondRunAfterLock)
         .appendAs(
             null,
             """

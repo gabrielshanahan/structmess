@@ -1,6 +1,9 @@
 package io.github.gabrielshanahan.structmess.domain
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.github.gabrielshanahan.structmess.coroutine.CooperationContext
+import io.github.gabrielshanahan.structmess.coroutine.readCooperationContext
+import io.github.gabrielshanahan.structmess.coroutine.writeCooperationContext
 import io.quarkus.test.junit.QuarkusTest
 import jakarta.inject.Inject
 import org.junit.jupiter.api.Assertions.*

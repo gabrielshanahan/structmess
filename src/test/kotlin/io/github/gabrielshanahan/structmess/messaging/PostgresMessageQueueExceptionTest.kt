@@ -1,9 +1,9 @@
 package io.github.gabrielshanahan.structmess.messaging
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.github.gabrielshanahan.structmess.coroutine.coroutine
 import io.github.gabrielshanahan.structmess.domain.CooperationException
 import io.github.gabrielshanahan.structmess.domain.CooperationFailure
-import io.github.gabrielshanahan.structmess.domain.coroutine
 import io.quarkus.test.junit.QuarkusTest
 import io.smallrye.mutiny.Uni
 import io.vertx.mutiny.sqlclient.Pool

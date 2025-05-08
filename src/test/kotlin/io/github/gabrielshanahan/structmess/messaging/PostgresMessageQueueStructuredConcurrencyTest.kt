@@ -1,13 +1,13 @@
 package io.github.gabrielshanahan.structmess.messaging
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import io.github.gabrielshanahan.structmess.domain.CooperationContext
+import io.github.gabrielshanahan.structmess.coroutine.CooperationContext
+import io.github.gabrielshanahan.structmess.coroutine.CooperationRoot
+import io.github.gabrielshanahan.structmess.coroutine.CoroutineIdentifier
+import io.github.gabrielshanahan.structmess.coroutine.coroutine
+import io.github.gabrielshanahan.structmess.coroutine.writeCooperationContext
 import io.github.gabrielshanahan.structmess.domain.CooperationException
 import io.github.gabrielshanahan.structmess.domain.CooperationFailure
-import io.github.gabrielshanahan.structmess.domain.CooperationRoot
-import io.github.gabrielshanahan.structmess.domain.CoroutineIdentifier
-import io.github.gabrielshanahan.structmess.domain.coroutine
-import io.github.gabrielshanahan.structmess.domain.writeCooperationContext
 import io.quarkus.test.junit.QuarkusTest
 import io.smallrye.mutiny.Uni
 import io.vertx.mutiny.sqlclient.Pool
@@ -1334,8 +1334,8 @@ class PostgresMessageQueueStructuredConcurrencyTest {
                 assertEquivalent(
                     listOf(
                         CooperationExceptionData(
-                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ChildRolledBackException: <no message>",
-                            "io.github.gabrielshanahan.structmess.domain.ChildRolledBackException",
+                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException: <no message>",
+                            "io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException",
                             rootHandlerCoroutine.identifier.asSource(),
                             listOf(
                                 CooperationExceptionData(
@@ -1360,13 +1360,13 @@ class PostgresMessageQueueStructuredConcurrencyTest {
                 assertEquivalent(
                     listOf(
                         CooperationExceptionData(
-                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ParentSaidSoException: <no message>",
-                            "io.github.gabrielshanahan.structmess.domain.ParentSaidSoException",
+                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException: <no message>",
+                            "io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException",
                             rootHandlerCoroutine.identifier.asSource(),
                             listOf(
                                 CooperationExceptionData(
-                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ChildRolledBackException: <no message>",
-                                    "io.github.gabrielshanahan.structmess.domain.ChildRolledBackException",
+                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException: <no message>",
+                                    "io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException",
                                     rootHandlerCoroutine.identifier.asSource(),
                                     listOf(
                                         CooperationExceptionData(
@@ -1393,13 +1393,13 @@ class PostgresMessageQueueStructuredConcurrencyTest {
                 assertEquivalent(
                     listOf(
                         CooperationExceptionData(
-                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ParentSaidSoException: <no message>",
-                            "io.github.gabrielshanahan.structmess.domain.ParentSaidSoException",
+                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException: <no message>",
+                            "io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException",
                             rootHandlerCoroutine.identifier.asSource(),
                             listOf(
                                 CooperationExceptionData(
-                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ChildRolledBackException: <no message>",
-                                    "io.github.gabrielshanahan.structmess.domain.ChildRolledBackException",
+                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException: <no message>",
+                                    "io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException",
                                     rootHandlerCoroutine.identifier.asSource(),
                                     listOf(
                                         CooperationExceptionData(
@@ -1426,18 +1426,18 @@ class PostgresMessageQueueStructuredConcurrencyTest {
                 assertEquivalent(
                     listOf(
                         CooperationExceptionData(
-                            "[${childHandler1Coroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ParentSaidSoException: <no message>",
-                            "io.github.gabrielshanahan.structmess.domain.ParentSaidSoException",
+                            "[${childHandler1Coroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException: <no message>",
+                            "io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException",
                             childHandler1Coroutine.identifier.asSource(),
                             listOf(
                                 CooperationExceptionData(
-                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ParentSaidSoException: <no message>",
-                                    "io.github.gabrielshanahan.structmess.domain.ParentSaidSoException",
+                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException: <no message>",
+                                    "io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException",
                                     rootHandlerCoroutine.identifier.asSource(),
                                     listOf(
                                         CooperationExceptionData(
-                                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ChildRolledBackException: <no message>",
-                                            "io.github.gabrielshanahan.structmess.domain.ChildRolledBackException",
+                                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException: <no message>",
+                                            "io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException",
                                             rootHandlerCoroutine.identifier.asSource(),
                                             listOf(
                                                 CooperationExceptionData(
@@ -1466,18 +1466,18 @@ class PostgresMessageQueueStructuredConcurrencyTest {
                 assertEquivalent(
                     listOf(
                         CooperationExceptionData(
-                            "[${childHandler1Coroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ParentSaidSoException: <no message>",
-                            "io.github.gabrielshanahan.structmess.domain.ParentSaidSoException",
+                            "[${childHandler1Coroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException: <no message>",
+                            "io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException",
                             childHandler1Coroutine.identifier.asSource(),
                             listOf(
                                 CooperationExceptionData(
-                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ParentSaidSoException: <no message>",
-                                    "io.github.gabrielshanahan.structmess.domain.ParentSaidSoException",
+                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException: <no message>",
+                                    "io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException",
                                     rootHandlerCoroutine.identifier.asSource(),
                                     listOf(
                                         CooperationExceptionData(
-                                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ChildRolledBackException: <no message>",
-                                            "io.github.gabrielshanahan.structmess.domain.ChildRolledBackException",
+                                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException: <no message>",
+                                            "io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException",
                                             rootHandlerCoroutine.identifier.asSource(),
                                             listOf(
                                                 CooperationExceptionData(
@@ -1503,8 +1503,7 @@ class PostgresMessageQueueStructuredConcurrencyTest {
         }
 
         // We're only including the rollback/handlerScopeFailure lambdas that actually get called
-        // here,
-        // for brevity
+        // here, for brevity
         @Test
         fun `failed rollbacks are well behaved n-deep`() {
             val executionOrder = mutableListOf<String>()
@@ -1819,8 +1818,8 @@ class PostgresMessageQueueStructuredConcurrencyTest {
                 assertEquivalent(
                     listOf(
                         CooperationExceptionData(
-                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ChildRolledBackException: <no message>",
-                            "io.github.gabrielshanahan.structmess.domain.ChildRolledBackException",
+                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException: <no message>",
+                            "io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException",
                             rootHandlerCoroutine.identifier.asSource(),
                             listOf(
                                 CooperationExceptionData(
@@ -1845,13 +1844,13 @@ class PostgresMessageQueueStructuredConcurrencyTest {
                 assertEquivalent(
                     listOf(
                         CooperationExceptionData(
-                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ParentSaidSoException: <no message>",
-                            "io.github.gabrielshanahan.structmess.domain.ParentSaidSoException",
+                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException: <no message>",
+                            "io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException",
                             rootHandlerCoroutine.identifier.asSource(),
                             listOf(
                                 CooperationExceptionData(
-                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ChildRolledBackException: <no message>",
-                                    "io.github.gabrielshanahan.structmess.domain.ChildRolledBackException",
+                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException: <no message>",
+                                    "io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException",
                                     rootHandlerCoroutine.identifier.asSource(),
                                     listOf(
                                         CooperationExceptionData(
@@ -1878,13 +1877,13 @@ class PostgresMessageQueueStructuredConcurrencyTest {
                 assertEquivalent(
                     listOf(
                         CooperationExceptionData(
-                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ParentSaidSoException: <no message>",
-                            "io.github.gabrielshanahan.structmess.domain.ParentSaidSoException",
+                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException: <no message>",
+                            "io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException",
                             rootHandlerCoroutine.identifier.asSource(),
                             listOf(
                                 CooperationExceptionData(
-                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ChildRolledBackException: <no message>",
-                                    "io.github.gabrielshanahan.structmess.domain.ChildRolledBackException",
+                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException: <no message>",
+                                    "io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException",
                                     rootHandlerCoroutine.identifier.asSource(),
                                     listOf(
                                         CooperationExceptionData(
@@ -1911,18 +1910,18 @@ class PostgresMessageQueueStructuredConcurrencyTest {
                 assertEquivalent(
                     listOf(
                         CooperationExceptionData(
-                            "[${childHandler1Coroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ParentSaidSoException: <no message>",
-                            "io.github.gabrielshanahan.structmess.domain.ParentSaidSoException",
+                            "[${childHandler1Coroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException: <no message>",
+                            "io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException",
                             childHandler1Coroutine.identifier.asSource(),
                             listOf(
                                 CooperationExceptionData(
-                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ParentSaidSoException: <no message>",
-                                    "io.github.gabrielshanahan.structmess.domain.ParentSaidSoException",
+                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException: <no message>",
+                                    "io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException",
                                     rootHandlerCoroutine.identifier.asSource(),
                                     listOf(
                                         CooperationExceptionData(
-                                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ChildRolledBackException: <no message>",
-                                            "io.github.gabrielshanahan.structmess.domain.ChildRolledBackException",
+                                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException: <no message>",
+                                            "io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException",
                                             rootHandlerCoroutine.identifier.asSource(),
                                             listOf(
                                                 CooperationExceptionData(
@@ -1951,18 +1950,18 @@ class PostgresMessageQueueStructuredConcurrencyTest {
                 assertEquivalent(
                     listOf(
                         CooperationExceptionData(
-                            "[${childHandler1Coroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ParentSaidSoException: <no message>",
-                            "io.github.gabrielshanahan.structmess.domain.ParentSaidSoException",
+                            "[${childHandler1Coroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException: <no message>",
+                            "io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException",
                             childHandler1Coroutine.identifier.asSource(),
                             listOf(
                                 CooperationExceptionData(
-                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ParentSaidSoException: <no message>",
-                                    "io.github.gabrielshanahan.structmess.domain.ParentSaidSoException",
+                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException: <no message>",
+                                    "io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException",
                                     rootHandlerCoroutine.identifier.asSource(),
                                     listOf(
                                         CooperationExceptionData(
-                                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ChildRolledBackException: <no message>",
-                                            "io.github.gabrielshanahan.structmess.domain.ChildRolledBackException",
+                                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException: <no message>",
+                                            "io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException",
                                             rootHandlerCoroutine.identifier.asSource(),
                                             listOf(
                                                 CooperationExceptionData(
@@ -2010,8 +2009,8 @@ class PostgresMessageQueueStructuredConcurrencyTest {
                 assertEquivalent(
                     listOf(
                         CooperationExceptionData(
-                            "[${childHandler1Coroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ChildRollbackFailedException: <no message>",
-                            "io.github.gabrielshanahan.structmess.domain.ChildRollbackFailedException",
+                            "[${childHandler1Coroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ChildRollbackFailedException: <no message>",
+                            "io.github.gabrielshanahan.structmess.coroutine.ChildRollbackFailedException",
                             childHandler1Coroutine.identifier.asSource(),
                             listOf(
                                 CooperationExceptionData(
@@ -2020,13 +2019,13 @@ class PostgresMessageQueueStructuredConcurrencyTest {
                                     grandChildCoroutine.identifier.asSource(),
                                 ),
                                 CooperationExceptionData(
-                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ParentSaidSoException: <no message>",
-                                    "io.github.gabrielshanahan.structmess.domain.ParentSaidSoException",
+                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException: <no message>",
+                                    "io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException",
                                     rootHandlerCoroutine.identifier.asSource(),
                                     listOf(
                                         CooperationExceptionData(
-                                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ChildRolledBackException: <no message>",
-                                            "io.github.gabrielshanahan.structmess.domain.ChildRolledBackException",
+                                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException: <no message>",
+                                            "io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException",
                                             rootHandlerCoroutine.identifier.asSource(),
                                             listOf(
                                                 CooperationExceptionData(
@@ -2055,13 +2054,13 @@ class PostgresMessageQueueStructuredConcurrencyTest {
                 assertEquivalent(
                     listOf(
                         CooperationExceptionData(
-                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ChildRollbackFailedException: <no message>",
-                            "io.github.gabrielshanahan.structmess.domain.ChildRollbackFailedException",
+                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ChildRollbackFailedException: <no message>",
+                            "io.github.gabrielshanahan.structmess.coroutine.ChildRollbackFailedException",
                             rootHandlerCoroutine.identifier.asSource(),
                             listOf(
                                 CooperationExceptionData(
-                                    "[${childHandler1Coroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ChildRollbackFailedException: <no message>",
-                                    "io.github.gabrielshanahan.structmess.domain.ChildRollbackFailedException",
+                                    "[${childHandler1Coroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ChildRollbackFailedException: <no message>",
+                                    "io.github.gabrielshanahan.structmess.coroutine.ChildRollbackFailedException",
                                     childHandler1Coroutine.identifier.asSource(),
                                     listOf(
                                         CooperationExceptionData(
@@ -2070,13 +2069,13 @@ class PostgresMessageQueueStructuredConcurrencyTest {
                                             grandChildCoroutine.identifier.asSource(),
                                         ),
                                         CooperationExceptionData(
-                                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ParentSaidSoException: <no message>",
-                                            "io.github.gabrielshanahan.structmess.domain.ParentSaidSoException",
+                                            "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException: <no message>",
+                                            "io.github.gabrielshanahan.structmess.coroutine.ParentSaidSoException",
                                             rootHandlerCoroutine.identifier.asSource(),
                                             listOf(
                                                 CooperationExceptionData(
-                                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ChildRolledBackException: <no message>",
-                                                    "io.github.gabrielshanahan.structmess.domain.ChildRolledBackException",
+                                                    "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException: <no message>",
+                                                    "io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException",
                                                     rootHandlerCoroutine.identifier.asSource(),
                                                     listOf(
                                                         CooperationExceptionData(
@@ -2224,8 +2223,8 @@ class PostgresMessageQueueStructuredConcurrencyTest {
                     assertEquivalent(
                         listOf(
                             CooperationExceptionData(
-                                "[master-system] io.github.gabrielshanahan.structmess.domain.CancellationRequestedException: feelz",
-                                "io.github.gabrielshanahan.structmess.domain.CancellationRequestedException",
+                                "[master-system] io.github.gabrielshanahan.structmess.coroutine.CancellationRequestedException: feelz",
+                                "io.github.gabrielshanahan.structmess.coroutine.CancellationRequestedException",
                                 "master-system",
                             )
                         ),
@@ -2243,13 +2242,13 @@ class PostgresMessageQueueStructuredConcurrencyTest {
                     assertEquivalent(
                         listOf(
                             CooperationExceptionData(
-                                "[${childHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.CancellationRequestedException: Cancellation request received",
-                                "io.github.gabrielshanahan.structmess.domain.CancellationRequestedException",
+                                "[${childHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.CancellationRequestedException: Cancellation request received",
+                                "io.github.gabrielshanahan.structmess.coroutine.CancellationRequestedException",
                                 childHandlerCoroutine.identifier.asSource(),
                                 listOf(
                                     CooperationExceptionData(
-                                        "[master-system] io.github.gabrielshanahan.structmess.domain.CancellationRequestedException: feelz",
-                                        "io.github.gabrielshanahan.structmess.domain.CancellationRequestedException",
+                                        "[master-system] io.github.gabrielshanahan.structmess.coroutine.CancellationRequestedException: feelz",
+                                        "io.github.gabrielshanahan.structmess.coroutine.CancellationRequestedException",
                                         "master-system",
                                     )
                                 ),
@@ -2269,18 +2268,18 @@ class PostgresMessageQueueStructuredConcurrencyTest {
                     assertEquivalent(
                         listOf(
                             CooperationExceptionData(
-                                "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.ChildRolledBackException: <no message>",
-                                "io.github.gabrielshanahan.structmess.domain.ChildRolledBackException",
+                                "[${rootHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException: <no message>",
+                                "io.github.gabrielshanahan.structmess.coroutine.ChildRolledBackException",
                                 rootHandlerCoroutine.identifier.asSource(),
                                 listOf(
                                     CooperationExceptionData(
-                                        "[${childHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.domain.CancellationRequestedException: Cancellation request received",
-                                        "io.github.gabrielshanahan.structmess.domain.CancellationRequestedException",
+                                        "[${childHandlerCoroutine.identifier.asSource()}] io.github.gabrielshanahan.structmess.coroutine.CancellationRequestedException: Cancellation request received",
+                                        "io.github.gabrielshanahan.structmess.coroutine.CancellationRequestedException",
                                         childHandlerCoroutine.identifier.asSource(),
                                         listOf(
                                             CooperationExceptionData(
-                                                "[master-system] io.github.gabrielshanahan.structmess.domain.CancellationRequestedException: feelz",
-                                                "io.github.gabrielshanahan.structmess.domain.CancellationRequestedException",
+                                                "[master-system] io.github.gabrielshanahan.structmess.coroutine.CancellationRequestedException: feelz",
+                                                "io.github.gabrielshanahan.structmess.coroutine.CancellationRequestedException",
                                                 "master-system",
                                             )
                                         ),
@@ -2952,7 +2951,7 @@ class PostgresMessageQueueStructuredConcurrencyTest {
                 contains("child-handler-1") -> "childHandler1Coroutine"
                 contains("child-handler-2") -> "childHandler2Coroutine"
                 contains("child-handler") -> "childHandlerCoroutine"
-                contains("grandchild-handler") -> "grandChildCoroutine"
+                contains("grandchild") -> "grandChildCoroutine"
                 else -> ""
             }
 }

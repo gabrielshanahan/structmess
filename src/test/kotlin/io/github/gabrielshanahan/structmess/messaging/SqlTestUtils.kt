@@ -2,9 +2,9 @@ package io.github.gabrielshanahan.structmess.messaging
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
-import io.github.gabrielshanahan.structmess.domain.ContinuationIdentifier
+import io.github.gabrielshanahan.structmess.coroutine.ContinuationIdentifier
+import io.github.gabrielshanahan.structmess.coroutine.CoroutineIdentifier
 import io.github.gabrielshanahan.structmess.domain.CooperationFailure
-import io.github.gabrielshanahan.structmess.domain.CoroutineIdentifier
 import io.github.gabrielshanahan.structmess.domain.Message
 import io.vertx.mutiny.sqlclient.Pool
 import io.vertx.mutiny.sqlclient.Tuple
