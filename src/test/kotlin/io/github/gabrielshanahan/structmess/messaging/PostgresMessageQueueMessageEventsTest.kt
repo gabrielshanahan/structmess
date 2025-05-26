@@ -1,7 +1,8 @@
 package io.github.gabrielshanahan.structmess.messaging
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import io.github.gabrielshanahan.structmess.domain.coroutine
+import io.github.gabrielshanahan.structmess.coroutine.childStrategy
+import io.github.gabrielshanahan.structmess.coroutine.saga
 import io.quarkus.test.junit.QuarkusTest
 import io.vertx.mutiny.sqlclient.Pool
 import io.vertx.mutiny.sqlclient.Tuple
@@ -95,7 +96,7 @@ class PostgresMessageQueueMessageEventsTest {
         val subscription1 =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName1, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName1, handlerRegistry.childStrategy()) {
                     step { scope, message -> latch.countDown() }
                 },
             )
@@ -103,7 +104,7 @@ class PostgresMessageQueueMessageEventsTest {
         val subscription2 =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName2, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName2, handlerRegistry.childStrategy()) {
                     step { scope, message -> latch.countDown() }
                 },
             )
@@ -142,7 +143,7 @@ class PostgresMessageQueueMessageEventsTest {
         val subscription1 =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName, handlerRegistry.childStrategy()) {
                     step { scope, message ->
                         processedCount.incrementAndGet()
                         latch.countDown()
@@ -153,7 +154,7 @@ class PostgresMessageQueueMessageEventsTest {
         val subscription2 =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName, handlerRegistry.childStrategy()) {
                     step { scope, message ->
                         processedCount.incrementAndGet()
                         latch.countDown()
@@ -197,7 +198,7 @@ class PostgresMessageQueueMessageEventsTest {
         val subscription =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName, handlerRegistry.childStrategy()) {
                     step { scope, message -> latch.countDown() }
                 },
             )
@@ -232,7 +233,7 @@ class PostgresMessageQueueMessageEventsTest {
         val subscription =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName, handlerRegistry.childStrategy()) {
                     step { scope, message ->
                         latch.countDown()
                         throw RuntimeException("Simulated failure to test rollback")
@@ -269,7 +270,7 @@ class PostgresMessageQueueMessageEventsTest {
         val subscription =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName, handlerRegistry.childStrategy()) {
                     step { scope, message -> latch.countDown() }
                 },
             )
@@ -328,7 +329,7 @@ class PostgresMessageQueueMessageEventsTest {
         val subscription =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName, handlerRegistry.childStrategy()) {
                     step { scope, message ->
                         latch.countDown()
                         throw RuntimeException("Simulated failure for event sequence test")
@@ -393,7 +394,7 @@ class PostgresMessageQueueMessageEventsTest {
         val subscription1 =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName, handlerRegistry.childStrategy()) {
                     step { scope, message ->
                         processedMessages.add(message.id)
                         countDownLatch.countDown()
@@ -404,7 +405,7 @@ class PostgresMessageQueueMessageEventsTest {
         val subscription2 =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName, handlerRegistry.childStrategy()) {
                     step { scope, message ->
                         processedMessages.add(message.id)
                         countDownLatch.countDown()

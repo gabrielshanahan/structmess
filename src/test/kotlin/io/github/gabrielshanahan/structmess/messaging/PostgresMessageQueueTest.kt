@@ -1,7 +1,8 @@
 package io.github.gabrielshanahan.structmess.messaging
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import io.github.gabrielshanahan.structmess.domain.coroutine
+import io.github.gabrielshanahan.structmess.coroutine.childStrategy
+import io.github.gabrielshanahan.structmess.coroutine.saga
 import io.quarkus.test.junit.QuarkusTest
 import io.vertx.mutiny.sqlclient.Pool
 import io.vertx.mutiny.sqlclient.Tuple
@@ -76,7 +77,7 @@ class PostgresMessageQueueTest {
 
         messageQueue.subscribe(
             testTopic,
-            coroutine(testHandler, handlerRegistry.cooperationHierarchyStrategy()) {
+            saga(testHandler, handlerRegistry.childStrategy()) {
                 step { scope, message ->
                     receivedCount.incrementAndGet()
                     latch.countDown()
@@ -111,7 +112,7 @@ class PostgresMessageQueueTest {
         messageQueue
             .subscribe(
                 testTopic,
-                coroutine(testHandler, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(testHandler, handlerRegistry.childStrategy()) {
                     uniStep { scope, message ->
                         messageQueue
                             .launchOnGlobalScope(scope.connection, otherTopic, otherPayload)

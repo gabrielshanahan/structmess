@@ -1,33 +1,24 @@
-package io.github.gabrielshanahan.structmess.domain
+package io.github.gabrielshanahan.structmess.coroutine
 
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.core.JsonToken
 import com.fasterxml.jackson.databind.ObjectMapper
-import io.github.gabrielshanahan.structmess.domain.CooperationContext.Key
+import io.github.gabrielshanahan.structmess.coroutine.CooperationContext.Key
 import java.io.StringReader
+import java.io.StringWriter
 import java.lang.reflect.ParameterizedType
+import kotlin.collections.iterator
 
 interface CooperationContext {
 
     operator fun <E : Element> get(key: Key<E>): E?
 
-    operator fun plus(context: CooperationContext): CooperationContext =
-        when (context) {
-            is Element ->
-                CooperationContextMap(mutableMapOf(), mutableMapOf(context.key to context)) + this
-            else -> context.fold(this, CooperationContext::plus)
-        }
+    operator fun plus(context: CooperationContext): CooperationContext
 
-    operator fun minus(key: Key<*>): CooperationContext =
-        if (get(key) == null) {
-            this
-        } else {
-            CooperationContextMap(mutableMapOf(), mutableMapOf()) + this - key
-        }
+    operator fun minus(key: Key<*>): CooperationContext
 
     fun <R> fold(initial: R, operation: (R, Element) -> R): R
 
-    // TODO: Doc that done this way to force keys to be singletons
     // TODO: Doc that the SIMPLE name is used
     sealed interface Key<E : Element>
 
@@ -35,10 +26,8 @@ interface CooperationContext {
 
     abstract class MappedKey<E : MappedElement> : Key<E> {
         init {
-            if (mappedElementClass == null) {
-                throw IllegalStateException(
-                    "${javaClass.name} must be parameterized with the element class."
-                )
+            checkNotNull(mappedElementClass) {
+                "${javaClass.name} must be parameterized with the element class."
             }
         }
 
@@ -67,6 +56,20 @@ interface CooperationContext {
         override operator fun <E : Element> get(key: Key<E>): E? =
             @Suppress("UNCHECKED_CAST") if (this.key == key) this as E else null
 
+        override fun plus(context: CooperationContext): CooperationContext =
+            if (context.has(key)) {
+                context
+            } else {
+                CooperationContextMap(mutableMapOf(), mutableMapOf(key to this)) + context
+            }
+
+        override fun minus(key: Key<*>): CooperationContext =
+            if (this.key == key) {
+                emptyContext()
+            } else {
+                this
+            }
+
         override fun <R> fold(initial: R, operation: (R, Element) -> R): R =
             operation(initial, this)
     }
@@ -75,6 +78,8 @@ interface CooperationContext {
 
     abstract class MappedElement(override val key: MappedKey<*>) : Element
 }
+
+fun CooperationContext.has(key: Key<*>) = get(key) != null
 
 val Key<*>.serializedValue: String
     get() =
@@ -109,29 +114,60 @@ data class CooperationContextMap(
         return (deserializedElement as E?)?.also { deserializedMap[key] = it }
     }
 
+    // TODO: Doc that this implementation will not run custom plus logic if the key hasn't been
+    // touched in either of the maps!
+    //  in practice, that shouldn't matter, because if we create the map ourselves, all the keys are
+    // touched, and the only way
+    //  we can get an untouched key is by deserializing the one in a message, so in practice we
+    // could only add that map to itself,
+    //  and that has no effect
     override fun plus(context: CooperationContext): CooperationContext =
         when (context) {
             is CooperationContext.Element ->
-                CooperationContextMap(
-                    serializedMap,
-                    buildMap {
-                            putAll(deserializedMap)
-                            put(context.key, context)
-                        }
-                        .toMutableMap(),
-                    objectMapper,
-                )
-            is CooperationContextMap ->
+                if (has(context.key)) {
+                    (this - context.key) + (get(context.key)!! + context)
+                } else {
+                    CooperationContextMap(
+                        serializedMap,
+                        buildMap {
+                                putAll(deserializedMap)
+                                put(context.key, context)
+                            }
+                            .toMutableMap(),
+                        objectMapper,
+                    )
+                }
+            is CooperationContextMap -> {
+                val deserializedKeys = deserializedMap.keys + context.deserializedMap.keys
+
+                // Make sure all keys deserialized in one map are also deserialized in the other
+                // map,
+                // so we can run instance-specific logic when calling
+                // CooperationContext.Element.plus
+                deserializedKeys.forEach { key ->
+                    get(key)
+                    context[key]
+                }
+
                 CooperationContextMap(
                     serializedMap.toMutableMap().apply { putAll(context.serializedMap) },
-                    deserializedMap.toMutableMap().apply { putAll(context.deserializedMap) },
+                    deserializedKeys.associateWithTo(mutableMapOf()) { key ->
+                        when {
+                            key in deserializedMap && key in context.deserializedMap ->
+                                (deserializedMap.getValue(key) +
+                                    context.deserializedMap.getValue(key))[key]!!
+                            key in deserializedMap -> deserializedMap.getValue(key)
+                            else -> context.deserializedMap.getValue(key)
+                        }
+                    },
                     context.objectMapper ?: objectMapper,
                 )
+            }
             else -> context.fold(this, CooperationContext::plus)
         }
 
     override fun minus(key: Key<*>): CooperationContext =
-        if (get(key) == null) {
+        if (!has(key)) {
             this
         } else {
             CooperationContextMap(
@@ -158,7 +194,7 @@ fun ObjectMapper.readCooperationContext(json: String): CooperationContext =
 
 fun ObjectMapper.writeCooperationContext(context: CooperationContext): String =
     writeMapofJsonStrings(
-        context.fold(mutableMapOf()) { acc, element ->
+        context.fold(sortedMapOf()) { acc, element ->
             acc[element.key.serializedValue] =
                 if (element is CooperationContext.OpaqueElement) element.json
                 else writeValueAsString(element)
@@ -167,7 +203,7 @@ fun ObjectMapper.writeCooperationContext(context: CooperationContext): String =
     )
 
 fun ObjectMapper.writeMapofJsonStrings(rawMap: Map<String, String>): String {
-    val writer = java.io.StringWriter()
+    val writer = StringWriter()
     val generator = factory.createGenerator(writer)
 
     generator.writeStartObject()

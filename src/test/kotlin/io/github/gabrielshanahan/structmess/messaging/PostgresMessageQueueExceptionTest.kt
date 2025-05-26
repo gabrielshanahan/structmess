@@ -1,9 +1,10 @@
 package io.github.gabrielshanahan.structmess.messaging
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.github.gabrielshanahan.structmess.coroutine.childStrategy
+import io.github.gabrielshanahan.structmess.coroutine.saga
 import io.github.gabrielshanahan.structmess.domain.CooperationException
 import io.github.gabrielshanahan.structmess.domain.CooperationFailure
-import io.github.gabrielshanahan.structmess.domain.coroutine
 import io.quarkus.test.junit.QuarkusTest
 import io.smallrye.mutiny.Uni
 import io.vertx.mutiny.sqlclient.Pool
@@ -49,7 +50,7 @@ class PostgresMessageQueueExceptionTest {
         val rootSubscription =
             messageQueue.subscribe(
                 rootTopic,
-                coroutine(rootHandler, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(rootHandler, handlerRegistry.childStrategy()) {
                     step { scope, message ->
                         messageId = message.id
                         latch.countDown()

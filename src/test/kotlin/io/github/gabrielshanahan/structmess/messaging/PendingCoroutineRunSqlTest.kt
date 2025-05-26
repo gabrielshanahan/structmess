@@ -1,13 +1,13 @@
 package io.github.gabrielshanahan.structmess.messaging
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import io.github.gabrielshanahan.structmess.domain.ContinuationIdentifier
-import io.github.gabrielshanahan.structmess.domain.CooperationHierarchyStrategy
-import io.github.gabrielshanahan.structmess.domain.CoroutineIdentifier
+import io.github.gabrielshanahan.structmess.coroutine.ChildStrategy
+import io.github.gabrielshanahan.structmess.coroutine.ContinuationIdentifier
+import io.github.gabrielshanahan.structmess.coroutine.DistributedCoroutineIdentifier
+import io.github.gabrielshanahan.structmess.coroutine.ROLLING_BACK_CHILD_SCOPES_STEP_SUFFIX
+import io.github.gabrielshanahan.structmess.coroutine.ROLLING_BACK_PREFIX
+import io.github.gabrielshanahan.structmess.coroutine.allMustFinish
 import io.github.gabrielshanahan.structmess.domain.Message
-import io.github.gabrielshanahan.structmess.domain.ROLLING_BACK_CHILD_SCOPES_STEP_SUFFIX
-import io.github.gabrielshanahan.structmess.domain.ROLLING_BACK_PREFIX
-import io.github.gabrielshanahan.structmess.domain.whenAllHandlersHaveCompleted
 import io.quarkus.test.junit.QuarkusTest
 import io.smallrye.mutiny.infrastructure.Infrastructure
 import io.vertx.core.json.JsonArray
@@ -26,7 +26,7 @@ import org.junit.jupiter.api.TestInstance
 
 @QuarkusTest
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class PostgresMessageQueueSqlTest {
+class PendingCoroutineRunSqlTest {
 
     @Inject lateinit var pool: Pool
 
@@ -42,7 +42,8 @@ class PostgresMessageQueueSqlTest {
     private val childHandler3 = "child-handler-3"
     private val childHandler4 = "child-handler-4"
 
-    fun CoroutineIdentifier.step(stepName: String) = ContinuationIdentifier(stepName, this)
+    fun DistributedCoroutineIdentifier.step(stepName: String) =
+        ContinuationIdentifier(stepName, this)
 
     @BeforeEach
     fun cleanupDatabase() {
@@ -514,7 +515,7 @@ class PostgresMessageQueueSqlTest {
         @Nested
         inner class NoStrategy {
 
-            val noStrategy = CooperationHierarchyStrategy { _, _ -> "false" }
+            val noStrategy = ChildStrategy { _, _ -> "false" }
             val candidateSeensWaitingToBeProcessed = candidateSeensWaitingToBeProcessed(noStrategy)
 
             @Test
@@ -705,7 +706,7 @@ class PostgresMessageQueueSqlTest {
         inner class RegistryStrategy {
 
             val registryStrategy =
-                whenAllHandlersHaveCompleted(
+                allMustFinish(
                     mapOf(
                         rootTopic to listOf(rootHandler),
                         childTopic1 to listOf(childHandler1, childHandler2),
@@ -961,7 +962,7 @@ class PostgresMessageQueueSqlTest {
     @Nested
     inner class SeenForProcessing {
         val registryStrategy =
-            whenAllHandlersHaveCompleted(
+            allMustFinish(
                 mapOf(
                     rootTopic to listOf(rootHandler),
                     childTopic1 to listOf(childHandler1, childHandler2),
@@ -1056,7 +1057,7 @@ class PostgresMessageQueueSqlTest {
                     .withTransaction { connection ->
                         connection
                             .preparedQuery(seenForProcessing.build())
-                            .execute(Tuple.of(coroutineIdentifier.name))
+                            .execute(Tuple.of(distributedCoroutineIdentifier.name))
                             .emitOn(Infrastructure.getDefaultWorkerPool())
                             .map { it.toList() }
                             .invoke { result ->
@@ -1104,7 +1105,7 @@ class PostgresMessageQueueSqlTest {
             }
 
         val registryStrategy =
-            whenAllHandlersHaveCompleted(
+            allMustFinish(
                 mapOf(
                     rootTopic to listOf(rootHandler),
                     childTopic1 to listOf(childHandler1, childHandler2),
@@ -1289,7 +1290,7 @@ class PostgresMessageQueueSqlTest {
 
     inner class CoroutineProgressBuilder(
         val message: Message,
-        val coroutineIdentifier: CoroutineIdentifier,
+        val distributedCoroutineIdentifier: DistributedCoroutineIdentifier,
         parentScope: List<UUID> = emptyList(),
     ) {
 
@@ -1297,7 +1298,7 @@ class PostgresMessageQueueSqlTest {
         val scope =
             parentScope +
                 UUID.nameUUIDFromBytes(
-                    (message.id.toString() + coroutineIdentifier.name).toByteArray(
+                    (message.id.toString() + distributedCoroutineIdentifier.name).toByteArray(
                         StandardCharsets.UTF_8
                     )
                 )
@@ -1319,7 +1320,7 @@ class PostgresMessageQueueSqlTest {
         ): Message =
             with(SqlTestUtils(pool, objectMapper)) {
                 val message = createSimpleMessage(topic, key, value)
-                emitted(message.id, coroutineIdentifier.step(stepName), scope)
+                emitted(message.id, distributedCoroutineIdentifier.step(stepName), scope)
                 message
             }
 
@@ -1336,23 +1337,24 @@ class PostgresMessageQueueSqlTest {
         ): Message = also {
             CoroutineProgressBuilder(
                     this,
-                    CoroutineIdentifier(name, UUID.randomUUID().toString()),
+                    DistributedCoroutineIdentifier(name, UUID.randomUUID().toString()),
                     scope,
                 )
                 .block()
         }
 
-        fun seen() = SqlTestUtils(pool, objectMapper).seen(message.id, coroutineIdentifier, scope)
+        fun seen() =
+            SqlTestUtils(pool, objectMapper).seen(message.id, distributedCoroutineIdentifier, scope)
 
         fun suspended(stepName: String) =
             SqlTestUtils(pool, objectMapper)
-                .suspended(message.id, coroutineIdentifier.step(stepName), scope)
+                .suspended(message.id, distributedCoroutineIdentifier.step(stepName), scope)
 
         fun suspended(stepName: Int) = suspended(stepName.toString())
 
         fun committed(stepName: String) =
             SqlTestUtils(pool, objectMapper)
-                .committed(message.id, coroutineIdentifier.step(stepName), scope)
+                .committed(message.id, distributedCoroutineIdentifier.step(stepName), scope)
 
         fun committed(stepName: Int) = committed(stepName.toString())
 
@@ -1360,12 +1362,12 @@ class PostgresMessageQueueSqlTest {
             when (stepName) {
                 null ->
                     SqlTestUtils(pool, objectMapper)
-                        .rollingBack(message.id, coroutineIdentifier, scope, throwable)
+                        .rollingBack(message.id, distributedCoroutineIdentifier, scope, throwable)
                 else ->
                     SqlTestUtils(pool, objectMapper)
                         .rollingBack(
                             message.id,
-                            coroutineIdentifier.step(stepName),
+                            distributedCoroutineIdentifier.step(stepName),
                             scope,
                             throwable,
                         )
@@ -1378,7 +1380,7 @@ class PostgresMessageQueueSqlTest {
             SqlTestUtils(pool, objectMapper)
                 .rollbackEmitted(
                     childMessage.id,
-                    coroutineIdentifier.step(stepName),
+                    distributedCoroutineIdentifier.step(stepName),
                     scope,
                     throwable,
                 )
@@ -1388,13 +1390,18 @@ class PostgresMessageQueueSqlTest {
 
         fun rolledBack(stepName: String) =
             SqlTestUtils(pool, objectMapper)
-                .rolledBack(message.id, coroutineIdentifier.step(stepName), scope)
+                .rolledBack(message.id, distributedCoroutineIdentifier.step(stepName), scope)
 
         fun rolledBack(stepName: Int) = rolledBack(stepName.toString())
 
         fun rollbackFailed(stepName: String, throwable: Throwable) =
             SqlTestUtils(pool, objectMapper)
-                .rollbackFailed(message.id, coroutineIdentifier.step(stepName), scope, throwable)
+                .rollbackFailed(
+                    message.id,
+                    distributedCoroutineIdentifier.step(stepName),
+                    scope,
+                    throwable,
+                )
 
         fun rollbackFailed(stepName: Int, throwable: Throwable) =
             rollbackFailed(stepName.toString(), throwable)
@@ -1402,7 +1409,10 @@ class PostgresMessageQueueSqlTest {
         fun verify(sql: SQL, block: (List<Row>) -> Unit) {
             val result =
                 pool
-                    .executeAndAwaitPreparedQuery(sql.build(), Tuple.of(coroutineIdentifier.name))
+                    .executeAndAwaitPreparedQuery(
+                        sql.build(),
+                        Tuple.of(distributedCoroutineIdentifier.name),
+                    )
                     .toList()
 
             block(result)
@@ -1413,7 +1423,10 @@ class PostgresMessageQueueSqlTest {
         name: String,
         block: CoroutineProgressBuilder.() -> Unit,
     ): Message = also {
-        CoroutineProgressBuilder(this, CoroutineIdentifier(name, UUID.randomUUID().toString()))
+        CoroutineProgressBuilder(
+                this,
+                DistributedCoroutineIdentifier(name, UUID.randomUUID().toString()),
+            )
             .block()
     }
 }

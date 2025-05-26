@@ -1,6 +1,6 @@
 package io.github.gabrielshanahan.structmess.messaging
 
-import io.github.gabrielshanahan.structmess.domain.CooperationHierarchyStrategy
+import io.github.gabrielshanahan.structmess.coroutine.ChildStrategy
 import io.vertx.mutiny.sqlclient.Pool
 import io.vertx.mutiny.sqlclient.Row
 import io.vertx.mutiny.sqlclient.RowSet
@@ -16,7 +16,9 @@ val candidateSeens =
         cte = null,
         "candidate_seens",
         // TODO: Additional strategy that only goes e.g. n events back in time, or n days or
-        // something
+        //  something. Should be part of EventLoopStrategy - when creating it, specify a date of
+        // creation (which is statically part of the code)
+        //  which determines after when events will be considered
         """
             SELECT DISTINCT ON (seen.id)
                 seen.id, 
@@ -156,6 +158,7 @@ val childRollingBacks =
                         AND parent_seen.cooperation_lineage <@ rolling_backs.cooperation_lineage 
                         AND cardinality(rolling_backs.cooperation_lineage) = cardinality(parent_seen.cooperation_lineage) + 1
                 WHERE rolling_backs.type = 'ROLLING_BACK'
+                ORDER BY rolling_backs.created_at
             """
             .trimIndent(),
     )
@@ -175,7 +178,7 @@ val terminatedChildRollingBacks =
             .trimIndent(),
     )
 
-fun candidateSeensWaitingToBeProcessed(cooperationHierarchyStrategy: CooperationHierarchyStrategy) =
+fun candidateSeensWaitingToBeProcessed(childStrategy: ChildStrategy) =
     terminatedChildRollingBacks.appendAs(
         "candidate_seens_waiting_to_be_processed",
         """
@@ -203,7 +206,7 @@ fun candidateSeensWaitingToBeProcessed(cooperationHierarchyStrategy: Cooperation
                                 LEFT JOIN child_seens ON child_seens.parent_cooperation_lineage = child_emissions_in_latest_step.cooperation_lineage
                             WHERE
                                 child_emissions_in_latest_step.cooperation_lineage = candidate_seens.cooperation_lineage
-                                AND ${cooperationHierarchyStrategy.anyMissingSeenSql("child_emissions_in_latest_step", "child_seens")}
+                                AND ${childStrategy.anySeenEventMissingSQL("child_emissions_in_latest_step", "child_seens")}
                         )
                         AND 
                         NOT EXISTS ( -- every SEEN has a counterpart in terminated_child_seens
@@ -230,7 +233,7 @@ fun candidateSeensWaitingToBeProcessed(cooperationHierarchyStrategy: Cooperation
                                 LEFT JOIN child_rolling_backs ON child_rolling_backs.parent_cooperation_lineage = child_rollback_emissions_in_latest_step.cooperation_lineage
                             WHERE
                                 child_rollback_emissions_in_latest_step.cooperation_lineage = candidate_seens.cooperation_lineage
-                                AND ${cooperationHierarchyStrategy.anyMissingSeenSql("child_rollback_emissions_in_latest_step", "child_rolling_backs")}
+                                AND ${childStrategy.anySeenEventMissingSQL("child_rollback_emissions_in_latest_step", "child_rolling_backs")}
                         )
                         AND
                         NOT EXISTS ( -- every ROLLING_BACK has a counterpart in terminated_child_rolling_backs
@@ -238,20 +241,18 @@ fun candidateSeensWaitingToBeProcessed(cooperationHierarchyStrategy: Cooperation
                                 1
                             FROM child_rolling_backs
                             LEFT JOIN terminated_child_rolling_backs ON child_rolling_backs.cooperation_lineage = terminated_child_rolling_backs.cooperation_lineage
-                            WHERE child_rolling_backs.parent_cooperation_lineage = candidate_seens.cooperation_lineage
-                              AND terminated_child_rolling_backs.cooperation_lineage IS NULL
+                            WHERE 
+                                child_rolling_backs.parent_cooperation_lineage = candidate_seens.cooperation_lineage
+                                    AND terminated_child_rolling_backs.cooperation_lineage IS NULL
                         )
                     )
             """
             .trimIndent(),
     )
 
-fun seenForProcessing(
-    cooperationHierarchyStrategy: CooperationHierarchyStrategy,
-    secondRunAfterLock: Boolean = false,
-) =
+fun seenForProcessing(childStrategy: ChildStrategy, secondRunAfterLock: Boolean = false) =
     if (!secondRunAfterLock) {
-        candidateSeensWaitingToBeProcessed(cooperationHierarchyStrategy)
+        candidateSeensWaitingToBeProcessed(childStrategy)
             .appendAs(
                 "seen_for_processing",
                 """
@@ -268,7 +269,7 @@ fun seenForProcessing(
     } else {
         // We need to leave out the FOR UPDATE SKIP LOCKED, since once a record is locked, it's
         // locked even for the transaction that locked it
-        candidateSeensWaitingToBeProcessed(cooperationHierarchyStrategy)
+        candidateSeensWaitingToBeProcessed(childStrategy)
             .appendAs(
                 "seen_for_processing",
                 """
@@ -280,11 +281,8 @@ fun seenForProcessing(
             )
     }
 
-fun lastTwoEvent(
-    cooperationHierarchyStrategy: CooperationHierarchyStrategy,
-    secondRunAfterLock: Boolean = false,
-) =
-    seenForProcessing(cooperationHierarchyStrategy, secondRunAfterLock)
+fun lastTwoEvents(childStrategy: ChildStrategy, secondRunAfterLock: Boolean = false) =
+    seenForProcessing(childStrategy, secondRunAfterLock)
         .appendAs(
             "last_two_events",
             """
@@ -301,11 +299,8 @@ fun lastTwoEvent(
                 .trimIndent(),
         )
 
-fun finalSelect(
-    cooperationHierarchyStrategy: CooperationHierarchyStrategy,
-    secondRunAfterLock: Boolean = false,
-) =
-    lastTwoEvent(cooperationHierarchyStrategy, secondRunAfterLock)
+fun finalSelect(childStrategy: ChildStrategy, secondRunAfterLock: Boolean = false) =
+    lastTwoEvents(childStrategy, secondRunAfterLock)
         .appendAs(
             null,
             """
@@ -372,15 +367,6 @@ fun SQL.build(): String =
     |$sql;
 """
         .trimMargin()
-
-fun Pool.executePreparedQuery(@Language("PostgreSQL") sql: String, params: Tuple? = null) =
-    withConnection { connection ->
-        if (params == null) {
-            connection.preparedQuery(sql).execute()
-        } else {
-            connection.preparedQuery(sql).execute(params)
-        }
-    }
 
 fun Pool.executeAndAwaitPreparedQuery(
     @Language("PostgreSQL") sql: String,

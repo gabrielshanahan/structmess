@@ -1,10 +1,11 @@
 package io.github.gabrielshanahan.structmess.messaging
 
 import com.fasterxml.jackson.databind.JsonNode
-import io.github.gabrielshanahan.structmess.domain.CooperationContext
-import io.github.gabrielshanahan.structmess.domain.CooperationRoot
-import io.github.gabrielshanahan.structmess.domain.CooperationScope
-import io.github.gabrielshanahan.structmess.domain.Coroutine
+import io.github.gabrielshanahan.structmess.coroutine.CooperationContext
+import io.github.gabrielshanahan.structmess.coroutine.CooperationScope
+import io.github.gabrielshanahan.structmess.coroutine.CooperationScopeIdentifier
+import io.github.gabrielshanahan.structmess.coroutine.DistributedCoroutine
+import io.github.gabrielshanahan.structmess.coroutine.RootCooperationScopeIdentifier
 import io.github.gabrielshanahan.structmess.domain.Message
 import io.smallrye.mutiny.Uni
 import io.vertx.mutiny.sqlclient.SqlConnection
@@ -50,18 +51,18 @@ interface MessageQueue {
         additionalContext: CooperationContext? = null,
     ): Uni<Message>
 
-    fun cancel(scope: CooperationScope, reason: String): Uni<Unit>
+    fun cancel(scope: CooperationScope, reason: String): Uni<Nothing>
 
     fun cancel(
         connection: SqlConnection,
-        cooperationRoot: CooperationRoot,
+        cooperationScopeIdentifier: CooperationScopeIdentifier,
         source: String,
         reason: String,
     ): Uni<Unit>
 
     fun rollback(
         connection: SqlConnection,
-        cooperationRoot: CooperationRoot,
+        cooperationScopeIdentifier: CooperationScopeIdentifier,
         source: String,
         reason: String,
     ): Uni<Unit>
@@ -72,7 +73,12 @@ interface MessageQueue {
      * @param topic The topic to subscribe to
      * @return A stream of messages
      */
-    fun subscribe(topic: String, coroutine: Coroutine): Subscription
+    fun subscribe(topic: String, distributedCoroutine: DistributedCoroutine): Subscription
 
     fun interface Subscription : AutoCloseable
+
+    data class CooperationRoot(
+        val cooperationScopeIdentifier: RootCooperationScopeIdentifier,
+        val message: Message,
+    )
 }

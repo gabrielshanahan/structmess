@@ -26,7 +26,6 @@ data class CooperationFailure(
 ) {
     companion object {
 
-        // TODO: Serialize cancellation as $CANCELLATION$ or something!
         fun fromThrowable(throwable: Throwable, source: String): CooperationFailure {
             val stackTrace =
                 throwable.stackTrace.map { element ->
