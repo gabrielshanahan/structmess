@@ -1,8 +1,9 @@
 package io.github.gabrielshanahan.structmess.messaging
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import io.github.gabrielshanahan.structmess.domain.coroutine
+import io.github.gabrielshanahan.structmess.coroutine.eventLoopStrategy
+import io.github.gabrielshanahan.structmess.coroutine.saga
 import io.quarkus.test.junit.QuarkusTest
+import io.vertx.core.json.JsonObject
 import io.vertx.mutiny.sqlclient.Pool
 import io.vertx.mutiny.sqlclient.Tuple
 import jakarta.inject.Inject
@@ -25,8 +26,6 @@ class PostgresMessageQueueMessageEventsTest {
     @Inject lateinit var messageQueue: MessageQueue
 
     @Inject lateinit var handlerRegistry: HandlerRegistry
-
-    @Inject lateinit var objectMapper: ObjectMapper
 
     @Inject lateinit var pool: Pool
 
@@ -59,12 +58,12 @@ class PostgresMessageQueueMessageEventsTest {
 
     @Test
     fun `should write EMITTED event when message is published`() {
-        val payload = objectMapper.createObjectNode().put("text", "Testing EMITTED event")
+        val payload = JsonObject().put("text", "Testing EMITTED event")
 
         val message =
             pool
                 .withTransaction { connection ->
-                    messageQueue.launchOnGlobalScope(connection, testTopic, payload)
+                    messageQueue.launch(connection, testTopic, payload)
                 }
                 .await()
                 .indefinitely()
@@ -86,7 +85,7 @@ class PostgresMessageQueueMessageEventsTest {
 
     @Test
     fun `should write one SEEN event per handler`() {
-        val payload = objectMapper.createObjectNode().put("text", "Testing SEEN event")
+        val payload = JsonObject().put("text", "Testing SEEN event")
         val handlerName1 = "test-handler-1"
         val handlerName2 = "test-handler-2"
         val messageIdRef = AtomicReference<UUID>()
@@ -95,7 +94,7 @@ class PostgresMessageQueueMessageEventsTest {
         val subscription1 =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName1, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName1, handlerRegistry.eventLoopStrategy()) {
                     step { scope, message -> latch.countDown() }
                 },
             )
@@ -103,7 +102,7 @@ class PostgresMessageQueueMessageEventsTest {
         val subscription2 =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName2, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName2, handlerRegistry.eventLoopStrategy()) {
                     step { scope, message -> latch.countDown() }
                 },
             )
@@ -111,7 +110,7 @@ class PostgresMessageQueueMessageEventsTest {
         val message =
             pool
                 .withTransaction { connection ->
-                    messageQueue.launchOnGlobalScope(connection, testTopic, payload)
+                    messageQueue.launch(connection, testTopic, payload)
                 }
                 .await()
                 .indefinitely()
@@ -133,7 +132,7 @@ class PostgresMessageQueueMessageEventsTest {
 
     @Test
     fun `should synchronize multiple instances of the same handler using message event records`() {
-        val payload = objectMapper.createObjectNode().put("text", "Testing handler synchronization")
+        val payload = JsonObject().put("text", "Testing handler synchronization")
         val handlerName = "sync-test-handler"
         val processedCount = AtomicInteger(0)
         val messageIdRef = AtomicReference<UUID>()
@@ -142,7 +141,7 @@ class PostgresMessageQueueMessageEventsTest {
         val subscription1 =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName, handlerRegistry.eventLoopStrategy()) {
                     step { scope, message ->
                         processedCount.incrementAndGet()
                         latch.countDown()
@@ -153,7 +152,7 @@ class PostgresMessageQueueMessageEventsTest {
         val subscription2 =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName, handlerRegistry.eventLoopStrategy()) {
                     step { scope, message ->
                         processedCount.incrementAndGet()
                         latch.countDown()
@@ -164,7 +163,7 @@ class PostgresMessageQueueMessageEventsTest {
         val message =
             pool
                 .withTransaction { connection ->
-                    messageQueue.launchOnGlobalScope(connection, testTopic, payload)
+                    messageQueue.launch(connection, testTopic, payload)
                 }
                 .await()
                 .indefinitely()
@@ -189,7 +188,7 @@ class PostgresMessageQueueMessageEventsTest {
 
     @Test
     fun `should write COMMITTED event on successful transaction`() {
-        val payload = objectMapper.createObjectNode().put("text", "Testing COMMITTED event")
+        val payload = JsonObject().put("text", "Testing COMMITTED event")
         val handlerName = "commit-test-handler"
         val messageIdRef = AtomicReference<UUID>()
         val latch = CountDownLatch(1)
@@ -197,7 +196,7 @@ class PostgresMessageQueueMessageEventsTest {
         val subscription =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName, handlerRegistry.eventLoopStrategy()) {
                     step { scope, message -> latch.countDown() }
                 },
             )
@@ -205,7 +204,7 @@ class PostgresMessageQueueMessageEventsTest {
         val message =
             pool
                 .withTransaction { connection ->
-                    messageQueue.launchOnGlobalScope(connection, testTopic, payload)
+                    messageQueue.launch(connection, testTopic, payload)
                 }
                 .await()
                 .indefinitely()
@@ -224,7 +223,7 @@ class PostgresMessageQueueMessageEventsTest {
 
     @Test
     fun `should write ROLLED_BACK event when exception is thrown`() {
-        val payload = objectMapper.createObjectNode().put("text", "Testing ROLLED_BACK event")
+        val payload = JsonObject().put("text", "Testing ROLLED_BACK event")
         val handlerName = "rollback-test-handler"
         val messageIdRef = AtomicReference<UUID>()
         val latch = CountDownLatch(1)
@@ -232,7 +231,7 @@ class PostgresMessageQueueMessageEventsTest {
         val subscription =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName, handlerRegistry.eventLoopStrategy()) {
                     step { scope, message ->
                         latch.countDown()
                         throw RuntimeException("Simulated failure to test rollback")
@@ -243,7 +242,7 @@ class PostgresMessageQueueMessageEventsTest {
         val message =
             pool
                 .withTransaction { connection ->
-                    messageQueue.launchOnGlobalScope(connection, testTopic, payload)
+                    messageQueue.launch(connection, testTopic, payload)
                 }
                 .await()
                 .indefinitely()
@@ -262,14 +261,14 @@ class PostgresMessageQueueMessageEventsTest {
 
     @Test
     fun `should follow complete message event writing sequence on successful processing`() {
-        val payload = objectMapper.createObjectNode().put("text", "Testing full event sequence")
+        val payload = JsonObject().put("text", "Testing full event sequence")
         val handlerName = "sequence-test-handler"
         val latch = CountDownLatch(1)
 
         val subscription =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName, handlerRegistry.eventLoopStrategy()) {
                     step { scope, message -> latch.countDown() }
                 },
             )
@@ -277,7 +276,7 @@ class PostgresMessageQueueMessageEventsTest {
         val message =
             pool
                 .withTransaction { connection ->
-                    messageQueue.launchOnGlobalScope(connection, testTopic, payload)
+                    messageQueue.launch(connection, testTopic, payload)
                 }
                 .await()
                 .indefinitely()
@@ -321,14 +320,14 @@ class PostgresMessageQueueMessageEventsTest {
 
     @Test
     fun `should follow complete message event writing sequence on failed processing`() {
-        val payload = objectMapper.createObjectNode().put("text", "Testing failed event sequence")
+        val payload = JsonObject().put("text", "Testing failed event sequence")
         val handlerName = "failed-sequence-handler"
         val latch = CountDownLatch(1)
 
         val subscription =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName, handlerRegistry.eventLoopStrategy()) {
                     step { scope, message ->
                         latch.countDown()
                         throw RuntimeException("Simulated failure for event sequence test")
@@ -339,7 +338,7 @@ class PostgresMessageQueueMessageEventsTest {
         val message =
             pool
                 .withTransaction { connection ->
-                    messageQueue.launchOnGlobalScope(connection, testTopic, payload)
+                    messageQueue.launch(connection, testTopic, payload)
                 }
                 .await()
                 .indefinitely()
@@ -393,7 +392,7 @@ class PostgresMessageQueueMessageEventsTest {
         val subscription1 =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName, handlerRegistry.eventLoopStrategy()) {
                     step { scope, message ->
                         processedMessages.add(message.id)
                         countDownLatch.countDown()
@@ -404,7 +403,7 @@ class PostgresMessageQueueMessageEventsTest {
         val subscription2 =
             messageQueue.subscribe(
                 testTopic,
-                coroutine(handlerName, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(handlerName, handlerRegistry.eventLoopStrategy()) {
                     step { scope, message ->
                         processedMessages.add(message.id)
                         countDownLatch.countDown()
@@ -414,11 +413,11 @@ class PostgresMessageQueueMessageEventsTest {
 
         val messages = mutableListOf<UUID>()
         for (i in 1..messageCount) {
-            val payload = objectMapper.createObjectNode().put("text", "Concurrent message $i")
+            val payload = JsonObject().put("text", "Concurrent message $i")
             val message =
                 pool
                     .withTransaction { connection ->
-                        messageQueue.launchOnGlobalScope(connection, testTopic, payload)
+                        messageQueue.launch(connection, testTopic, payload)
                     }
                     .await()
                     .indefinitely()

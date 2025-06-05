@@ -1,8 +1,9 @@
 package io.github.gabrielshanahan.structmess.messaging
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import io.github.gabrielshanahan.structmess.domain.coroutine
+import io.github.gabrielshanahan.structmess.coroutine.eventLoopStrategy
+import io.github.gabrielshanahan.structmess.coroutine.saga
 import io.quarkus.test.junit.QuarkusTest
+import io.vertx.core.json.JsonObject
 import io.vertx.mutiny.sqlclient.Pool
 import io.vertx.mutiny.sqlclient.Tuple
 import jakarta.inject.Inject
@@ -24,8 +25,6 @@ class PostgresMessageQueueTest {
 
     @Inject lateinit var handlerRegistry: HandlerRegistry
 
-    @Inject lateinit var objectMapper: ObjectMapper
-
     @Inject lateinit var pool: Pool
 
     private val testTopic = "test-topic"
@@ -38,12 +37,11 @@ class PostgresMessageQueueTest {
 
     @Test
     fun `should publish a message`() {
-        val testPayload =
-            objectMapper.createObjectNode().put("text", "Hello, World!").put("priority", "HIGH")
+        val testPayload = JsonObject().put("text", "Hello, World!").put("priority", "HIGH")
         val message =
             pool
                 .withTransaction { connection ->
-                    messageQueue.launchOnGlobalScope(connection, testTopic, testPayload)
+                    messageQueue.launch(connection, testTopic, testPayload)
                 }
                 .await()
                 .indefinitely()
@@ -57,13 +55,10 @@ class PostgresMessageQueueTest {
 
         assertNotNull(persistedMessage.id)
         assertEquals(testTopic, persistedMessage.topic)
+        assertEquals(testPayload.getString("text"), persistedMessage.payload.getString("text"))
         assertEquals(
-            testPayload.get("text").asText(),
-            persistedMessage.payload.get("text").asText(),
-        )
-        assertEquals(
-            testPayload.get("priority").asText(),
-            persistedMessage.payload.get("priority").asText(),
+            testPayload.getString("priority"),
+            persistedMessage.payload.getString("priority"),
         )
         assertNotNull(persistedMessage.createdAt)
     }
@@ -76,7 +71,7 @@ class PostgresMessageQueueTest {
 
         messageQueue.subscribe(
             testTopic,
-            coroutine(testHandler, handlerRegistry.cooperationHierarchyStrategy()) {
+            saga(testHandler, handlerRegistry.eventLoopStrategy()) {
                 step { scope, message ->
                     receivedCount.incrementAndGet()
                     latch.countDown()
@@ -85,10 +80,10 @@ class PostgresMessageQueueTest {
         )
 
         for (i in 1..messageCount) {
-            val payload = objectMapper.createObjectNode().put("text", "Message $i")
+            val payload = JsonObject().put("text", "Message $i")
             pool
                 .withTransaction { connection ->
-                    messageQueue.launchOnGlobalScope(connection, testTopic, payload)
+                    messageQueue.launch(connection, testTopic, payload)
                 }
                 .await()
                 .indefinitely()
@@ -106,17 +101,17 @@ class PostgresMessageQueueTest {
         val successMessageIndex = AtomicInteger(-1)
 
         val otherTopic = "otherTopic"
-        val otherPayload = objectMapper.createObjectNode().put("otherIndex", 1)
+        val otherPayload = JsonObject().put("otherIndex", 1)
 
         messageQueue
             .subscribe(
                 testTopic,
-                coroutine(testHandler, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(testHandler, handlerRegistry.eventLoopStrategy()) {
                     uniStep { scope, message ->
                         messageQueue
-                            .launchOnGlobalScope(scope.connection, otherTopic, otherPayload)
+                            .launch(scope.connection, otherTopic, otherPayload)
                             .map { _ ->
-                                val index = message.payload.get("index").asInt()
+                                val index = message.payload.getInteger("index")
 
                                 if (index == 2) {
                                     successMessageIndex.set(index)
@@ -133,11 +128,11 @@ class PostgresMessageQueueTest {
             )
             .use {
                 pool.withTransactionAndForget { connection ->
-                    val payload1 = objectMapper.createObjectNode().put("index", 1)
-                    val publish1 = messageQueue.launchOnGlobalScope(connection, testTopic, payload1)
+                    val payload1 = JsonObject().put("index", 1)
+                    val publish1 = messageQueue.launch(connection, testTopic, payload1)
 
-                    val payload2 = objectMapper.createObjectNode().put("index", 2)
-                    val publish2 = messageQueue.launchOnGlobalScope(connection, testTopic, payload2)
+                    val payload2 = JsonObject().put("index", 2)
+                    val publish2 = messageQueue.launch(connection, testTopic, payload2)
 
                     // We do it like this, as opposed to Uni.combine().all().unis(publish1,
                     // publish2).discardItems();

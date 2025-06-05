@@ -1,11 +1,12 @@
 package io.github.gabrielshanahan.structmess.messaging
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import io.github.gabrielshanahan.structmess.coroutine.eventLoopStrategy
+import io.github.gabrielshanahan.structmess.coroutine.saga
 import io.github.gabrielshanahan.structmess.domain.CooperationException
 import io.github.gabrielshanahan.structmess.domain.CooperationFailure
-import io.github.gabrielshanahan.structmess.domain.coroutine
 import io.quarkus.test.junit.QuarkusTest
 import io.smallrye.mutiny.Uni
+import io.vertx.core.json.JsonObject
 import io.vertx.mutiny.sqlclient.Pool
 import io.vertx.mutiny.sqlclient.SqlClient
 import io.vertx.mutiny.sqlclient.Tuple
@@ -28,8 +29,6 @@ class PostgresMessageQueueExceptionTest {
 
     @Inject lateinit var messageQueue: PostgresMessageQueue
 
-    @Inject lateinit var objectMapper: ObjectMapper
-
     @Inject lateinit var handlerRegistry: HandlerRegistry
 
     private val rootTopic = "exception-test-root-topic"
@@ -49,7 +48,7 @@ class PostgresMessageQueueExceptionTest {
         val rootSubscription =
             messageQueue.subscribe(
                 rootTopic,
-                coroutine(rootHandler, handlerRegistry.cooperationHierarchyStrategy()) {
+                saga(rootHandler, handlerRegistry.eventLoopStrategy()) {
                     step { scope, message ->
                         messageId = message.id
                         latch.countDown()
@@ -59,10 +58,10 @@ class PostgresMessageQueueExceptionTest {
             )
 
         try {
-            val rootPayload = objectMapper.createObjectNode().put("test", "exception-storage")
+            val rootPayload = JsonObject().put("test", "exception-storage")
             pool
                 .withTransaction { connection ->
-                    messageQueue.launchOnGlobalScope(connection, rootTopic, rootPayload)
+                    messageQueue.launch(connection, rootTopic, rootPayload)
                 }
                 .await()
                 .indefinitely()
@@ -114,10 +113,7 @@ class PostgresMessageQueueExceptionTest {
             .map { rowSet ->
                 rowSet.single().getJsonArray("exceptions").map { exceptionJson ->
                     val cooperationFailure =
-                        objectMapper.readValue(
-                            exceptionJson as String,
-                            CooperationFailure::class.java,
-                        )
+                        (exceptionJson as JsonObject).mapTo(CooperationFailure::class.java)
                     CooperationFailure.toCooperationException(cooperationFailure)
                 }
             }

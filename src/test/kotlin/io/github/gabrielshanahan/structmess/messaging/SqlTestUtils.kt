@@ -1,19 +1,18 @@
 package io.github.gabrielshanahan.structmess.messaging
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
-import io.github.gabrielshanahan.structmess.domain.ContinuationIdentifier
+import io.github.gabrielshanahan.structmess.coroutine.ContinuationIdentifier
+import io.github.gabrielshanahan.structmess.coroutine.DistributedCoroutineIdentifier
 import io.github.gabrielshanahan.structmess.domain.CooperationFailure
-import io.github.gabrielshanahan.structmess.domain.CoroutineIdentifier
 import io.github.gabrielshanahan.structmess.domain.Message
+import io.vertx.core.json.JsonObject
 import io.vertx.mutiny.sqlclient.Pool
 import io.vertx.mutiny.sqlclient.Tuple
 import java.time.ZoneId
 import java.util.UUID
 
-class SqlTestUtils(private val pool: Pool, private val objectMapper: ObjectMapper) {
+class SqlTestUtils(private val pool: Pool) {
 
-    fun createMessage(topic: String, payload: JsonNode): Message {
+    fun createMessage(topic: String, payload: JsonObject): Message {
         val result =
             pool.executeAndAwaitPreparedQuery(
                 "INSERT INTO message (topic, payload) VALUES ($1, $2::jsonb) RETURNING id, created_at",
@@ -31,7 +30,7 @@ class SqlTestUtils(private val pool: Pool, private val objectMapper: ObjectMappe
     }
 
     fun createSimpleMessage(topic: String, key: String = "key", value: String = "value"): Message {
-        val payload = objectMapper.createObjectNode().put(key, value)
+        val payload = JsonObject().put(key, value)
         return createMessage(topic, payload)
     }
 
@@ -51,8 +50,8 @@ class SqlTestUtils(private val pool: Pool, private val objectMapper: ObjectMappe
             if (continuationIdentifier != null) {
                 Tuple.of(
                     messageId,
-                    continuationIdentifier.coroutineIdentifier.name,
-                    continuationIdentifier.coroutineIdentifier.instance,
+                    continuationIdentifier.distributedCoroutineIdentifier.name,
+                    continuationIdentifier.distributedCoroutineIdentifier.instance,
                     continuationIdentifier.stepName,
                     cooperationLineage.toTypedArray(),
                 )
@@ -67,29 +66,27 @@ class SqlTestUtils(private val pool: Pool, private val objectMapper: ObjectMappe
 
     fun coroutineEvent(
         messageId: UUID,
-        coroutineIdentifier: CoroutineIdentifier,
+        distributedCoroutineIdentifier: DistributedCoroutineIdentifier,
         cooperationLineage: List<UUID>,
         eventType: String,
         throwable: Throwable?,
     ): UUID {
-        val exceptionJson =
+        val exception =
             throwable?.let {
-                val cooperationFailure =
-                    CooperationFailure.fromThrowable(
-                        it,
-                        coroutineIdentifier.run { "$name[$instance]" },
-                    )
-                objectMapper.writeValueAsString(cooperationFailure)
+                CooperationFailure.fromThrowable(
+                    it,
+                    distributedCoroutineIdentifier.run { "$name[$instance]" },
+                )
             }
         val result =
             pool.executeAndAwaitPreparedQuery(
-                "INSERT INTO message_event (message_id, type, coroutine_name, coroutine_identifier, cooperation_lineage, exception) VALUES ($1, '$eventType', $2, $3, $4, $5::jsonb) RETURNING id",
+                "INSERT INTO message_event (message_id, type, coroutine_name, coroutine_identifier, cooperation_lineage, exception) VALUES ($1, '$eventType', $2, $3, $4, $5) RETURNING id",
                 Tuple.of(
                     messageId,
-                    coroutineIdentifier.name,
-                    coroutineIdentifier.instance,
+                    distributedCoroutineIdentifier.name,
+                    distributedCoroutineIdentifier.instance,
                     cooperationLineage.toTypedArray(),
-                    exceptionJson,
+                    JsonObject.mapFrom(exception),
                 ),
             )
 
@@ -98,9 +95,10 @@ class SqlTestUtils(private val pool: Pool, private val objectMapper: ObjectMappe
 
     fun seen(
         messageId: UUID,
-        coroutineIdentifier: CoroutineIdentifier,
+        distributedCoroutineIdentifier: DistributedCoroutineIdentifier,
         cooperationLineage: List<UUID>,
-    ): UUID = coroutineEvent(messageId, coroutineIdentifier, cooperationLineage, "SEEN", null)
+    ): UUID =
+        coroutineEvent(messageId, distributedCoroutineIdentifier, cooperationLineage, "SEEN", null)
 
     fun continuationEvent(
         messageId: UUID,
@@ -109,25 +107,23 @@ class SqlTestUtils(private val pool: Pool, private val objectMapper: ObjectMappe
         eventType: String,
         throwable: Throwable?,
     ): UUID {
-        val exceptionJson =
+        val exception =
             throwable?.let {
-                val cooperationFailure =
-                    CooperationFailure.fromThrowable(
-                        it,
-                        continuationIdentifier.coroutineIdentifier.run { "$name[$instance]" },
-                    )
-                objectMapper.writeValueAsString(cooperationFailure)
+                CooperationFailure.fromThrowable(
+                    it,
+                    continuationIdentifier.distributedCoroutineIdentifier.run { "$name[$instance]" },
+                )
             }
         val result =
             pool.executeAndAwaitPreparedQuery(
-                "INSERT INTO message_event (message_id, type, coroutine_name, coroutine_identifier, step, cooperation_lineage, exception) VALUES ($1, '$eventType', $2, $3, $4, $5, $6::jsonb) RETURNING id",
+                "INSERT INTO message_event (message_id, type, coroutine_name, coroutine_identifier, step, cooperation_lineage, exception) VALUES ($1, '$eventType', $2, $3, $4, $5, $6) RETURNING id",
                 Tuple.of(
                     messageId,
-                    continuationIdentifier.coroutineIdentifier.name,
-                    continuationIdentifier.coroutineIdentifier.instance,
+                    continuationIdentifier.distributedCoroutineIdentifier.name,
+                    continuationIdentifier.distributedCoroutineIdentifier.instance,
                     continuationIdentifier.stepName,
                     cooperationLineage.toTypedArray(),
-                    exceptionJson,
+                    JsonObject.mapFrom(exception),
                 ),
             )
 
@@ -150,13 +146,13 @@ class SqlTestUtils(private val pool: Pool, private val objectMapper: ObjectMappe
 
     fun rollingBack(
         messageId: UUID,
-        coroutineIdentifier: CoroutineIdentifier,
+        distributedCoroutineIdentifier: DistributedCoroutineIdentifier,
         cooperationLineage: List<UUID>,
         throwable: Throwable,
     ): UUID =
         coroutineEvent(
             messageId,
-            coroutineIdentifier,
+            distributedCoroutineIdentifier,
             cooperationLineage,
             "ROLLING_BACK",
             throwable,

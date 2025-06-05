@@ -65,7 +65,7 @@ The implementation uses a coroutine-like abstraction to represent operations:
    - Has a name
    - Has an invoke method that executes the step
    - Has an optional rollback method that undoes the effects of the step
-   - Has an optional handleScopeFailure method that handles failures in child scopes
+   - Has an optional handleChildFailures method that handles failures in child scopes
 
 4. **Continuation**: Represents the state of a suspended operation run
    - Can be resumed with the result of the last step
@@ -138,7 +138,7 @@ The strategies are implemented as SQL generators that produce conditions to be i
 
 4. Child failure handling:
    a. When a child operation run fails, the parent operation run receives a CooperationScopeRolledBackException or CooperationScopeRollbackFailedException
-   b. The parent can handle this exception in its handleScopeFailure method
+   b. The parent can handle this exception in its handleChildFailures method
    c. If the parent doesn't handle the exception, it will also roll back
    d. If the parent handles the exception, it can continue with its next step
 
@@ -205,7 +205,7 @@ The implementation uses an event loop to process signals:
 4. When a signal is ready to be processed:
    a. The operation run is resumed with the result of the last step
    b. If the last step was successful, the operation run continues with the next step
-   c. If the last step failed, the operation run executes the handleScopeFailure method
+   c. If the last step failed, the operation run executes the handleChildFailures method
    d. If a child operation run failed, the parent operation run receives an exception and can decide whether to continue or roll back
 
 ### Transactional Semantics
